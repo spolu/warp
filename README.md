@@ -32,7 +32,7 @@ Once connected, `wrp` will resize your terminal window to the hosting tty size
 (if possible). So, when connecting to a wrp, it's recommended to run `wrp` from
 new terminal window.  
 
-Unfortunately, `wrp` does not yet support redrawing the whole tty for new
+Unfortunately, `wrp` does not support redrawing the whole tty for new
 clients... yet /o\ 
 
 *If the wrp contains tmux session, changing the current tab will trigger
