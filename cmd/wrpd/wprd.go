@@ -9,7 +9,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/spolu/warp"
+	"github.com/spolu/wrp"
 
 	"github.com/hashicorp/yamux"
 )
