@@ -171,7 +171,7 @@ func (c *Open) Execute(
 			errors.Newf("Unable to make terminal raw: %v", err),
 		)
 	}
-	// Restors the terminal once we're done.
+	// Restores the terminal once we're done.
 	defer terminal.Restore(stdin, old)
 
 	// Opens state channel stateC.
@@ -191,6 +191,19 @@ func (c *Open) Execute(
 		)
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
+
+	// Send initial client update.
+	if err := c.updateW.Encode(wrp.ClientUpdate{
+		ID:       c.id,
+		Key:      c.key,
+		IsHost:   true,
+		Username: c.username,
+		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+	}); err != nil {
+		return errors.Trace(
+			errors.Newf("Send client update error: %v", err),
+		)
+	}
 
 	// Open host channel hostC.
 	c.hostC, err = session.Open()
@@ -226,18 +239,6 @@ func (c *Open) Execute(
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send host update error: %v", err),
-		)
-	}
-
-	// Send initial client update.
-	if err := c.updateW.Encode(wrp.ClientUpdate{
-		ID:       c.id,
-		Key:      c.key,
-		Username: c.username,
-		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
-	}); err != nil {
-		return errors.Trace(
-			errors.Newf("Send client update error: %v", err),
 		)
 	}
 

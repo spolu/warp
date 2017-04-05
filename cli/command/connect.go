@@ -161,23 +161,24 @@ func (c *Connect) Execute(
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
 
-	// Open data channel dataC.
-	c.dataC, err = session.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Data channel open error: %v", err),
-		)
-	}
-
 	// Send initial client update.
 	if err := c.updateW.Encode(wrp.ClientUpdate{
 		ID:       c.id,
 		Key:      c.key,
+		IsHost:   false,
 		Username: c.username,
 		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),
+		)
+	}
+
+	// Open data channel dataC.
+	c.dataC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Data channel open error: %v", err),
 		)
 	}
 
