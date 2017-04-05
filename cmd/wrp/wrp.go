@@ -19,6 +19,7 @@ import (
 
 	"github.com/hashicorp/yamux"
 	"github.com/kr/pty"
+	"github.com/spolu/wrp"
 )
 
 // flagFilterRegexp filters out flags from arguments.

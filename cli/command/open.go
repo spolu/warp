@@ -2,9 +2,25 @@ package command
 
 import (
 	"context"
+	"encoding/gob"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"os/signal"
+	"os/user"
+	"syscall"
+	"unsafe"
 
+	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/hashicorp/yamux"
+	"github.com/kr/pty"
+	"github.com/spolu/wrp"
 	"github.com/spolu/wrp/cli"
+	"github.com/spolu/wrp/lib/errors"
 	"github.com/spolu/wrp/lib/out"
+	"github.com/spolu/wrp/lib/token"
 )
 
 const (
@@ -18,6 +34,22 @@ func init() {
 
 // Open spawns a new shared terminal.
 type Open struct {
+	address  string
+	shell    string
+	username string
+	key      string
+	id       string
+
+	cmd *exec.Cmd
+	pty *os.File
+
+	dataC   net.Conn
+	stateC  net.Conn
+	stateR  *gob.Decoder
+	updateC net.Conn
+	updateW *gob.Encoder
+	hostC   net.Conn
+	hostW   *gob.Encoder
 }
 
 // NewOpen constructs and initializes the command.
@@ -35,13 +67,19 @@ func (c *Open) Help(
 	ctx context.Context,
 ) {
 	out.Normf("\nUsage: ")
-	out.Boldf("wrp open\n")
+	out.Boldf("wrp open [<id>]\n")
 	out.Normf("\n")
-	out.Normf("  Spawns a shared terminal and assigns a generated ID others can use to\n")
-	out.Normf("  connect. THe ID is echoed before the new terminal is spawned.\n")
+	out.Normf("  Spawns a shared terminal under the provided id. Others can use the id to connect\n")
+	out.Normf("  to the shared terminal. If no ID is provided a random one is generated.\n")
+	out.Normf("\n")
+	out.Normf("Arguments:\n")
+	out.Boldf("  id\n")
+	out.Normf("    The id to assign to the newly shared terminal.\n")
+	out.Valuf("    spolu-dev\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
 	out.Valuf("  wrp open\n")
+	out.Valuf("  wrp open spolu-dev\n")
 	out.Normf("\n")
 }
 
@@ -50,6 +88,29 @@ func (c *Open) Parse(
 	ctx context.Context,
 	args []string,
 ) error {
+	if len(args) == 0 {
+		c.id = token.RandStr()
+	} else {
+		c.id = args[0]
+	}
+
+	c.address = wrp.DefaultAddress
+
+	c.shell = "/bin/bash"
+	if os.Getenv("SHELL") != "" {
+		c.shell = os.Getenv("SHELL")
+	}
+
+	user, err := user.Current()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Error retrieving current user: %v", err),
+		)
+	}
+	c.username = user.Username
+
+	c.key = token.RandStr()
+
 	return nil
 }
 
@@ -57,6 +118,205 @@ func (c *Open) Parse(
 func (c *Open) Execute(
 	ctx context.Context,
 ) error {
+	ctx, cancel := context.WithCancel(ctx)
 
+	out.Normf("\n")
+	out.Normf("Shareable wrp id: ")
+	out.Boldf("%s\n", c.id)
+	out.Normf("\n")
+
+	conn, err := net.Dial("tcp", c.address)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Connection error: %v", err),
+		)
+	}
+
+	session, err := yamux.Client(conn, nil)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Session error: %v", err),
+		)
+	}
+	// Closes stateC, updateC, hostC, dataC, session and conn.
+	defer session.Close()
+
+	// Setup pty
+	c.cmd = exec.Command(c.shell)
+	c.pty, err = pty.Start(c.cmd)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("PTY error: %v", err),
+		)
+	}
+	go func() {
+		if err := c.cmd.Wait(); err != nil {
+			out.Errof("[Error] Cmd wait error: %v\n", err)
+		}
+		cancel()
+	}()
+	// Closes the newly created pty.
+	defer c.pty.Close()
+
+	// Setup local term.
+	stdin := int(os.Stdin.Fd())
+	if !terminal.IsTerminal(stdin) {
+		return errors.Trace(
+			errors.Newf("Not running in a terminal."),
+		)
+	}
+	old, err := terminal.MakeRaw(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Unable to make terminal raw: %v", err),
+		)
+	}
+	// Restors the terminal once we're done.
+	defer terminal.Restore(stdin, old)
+
+	// Opens state channel stateC.
+	c.stateC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("State channel open error: %v", err),
+		)
+	}
+	c.stateR = gob.NewDecoder(c.stateC)
+
+	// Open update channel updateC.
+	c.updateC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Update channel open error: %v", err),
+		)
+	}
+	c.updateW = gob.NewEncoder(c.updateC)
+
+	// Open host channel hostC.
+	c.hostC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Host channel open error: %v", err),
+		)
+	}
+	c.hostW = gob.NewEncoder(c.hostC)
+
+	// Open data channel dataC.
+	c.dataC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Data channel open error: %v", err),
+		)
+	}
+
+	// Send initial host update.
+	cols, rows, err := terminal.GetSize(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Getsize error: %v", err),
+		)
+	}
+
+	if err := c.updateW.Encode(wrp.HostUpdate{
+		ID:          c.id,
+		Key:         c.key,
+		WindowSize:  wrp.Size{Rows: rows, Cols: cols},
+		DefaultMode: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+		Permissions: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+	}); err != nil {
+		return errors.Trace(
+			errors.Newf("Send host update error: %v", err),
+		)
+	}
+
+	// Send initial client update.
+	if err := c.updateW.Encode(wrp.ClientUpdate{
+		ID:       c.id,
+		Key:      c.key,
+		Username: c.username,
+		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+	}); err != nil {
+		return errors.Trace(
+			errors.Newf("Send client update error: %v", err),
+		)
+	}
+
+	// Main loops.
+
+	// Forward window resizes to pty and stateChannel
+	go func() {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGWINCH)
+		for {
+			cols, rows, err := terminal.GetSize(stdin)
+			if err != nil {
+				out.Errof("[Error] Getsize error: %v\n", err)
+				break
+			}
+			if err := Setsize(c.pty, rows, cols); err != nil {
+				out.Errof("[Error] Setsize error: %v\n", err)
+				break
+			}
+			if err := syscall.Kill(c.cmd.Process.Pid, syscall.SIGWINCH); err != nil {
+				out.Errof("[Error] Sigwinch error: %v\n", err)
+				break
+			}
+
+			if err := c.hostW.Encode(wrp.HostUpdate{
+				ID:          c.id,
+				Key:         c.key,
+				WindowSize:  wrp.Size{Rows: rows, Cols: cols},
+				DefaultMode: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+				Permissions: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+			}); err != nil {
+				out.Errof("[Error] Send host update error: %v\n", err)
+				break
+			}
+			<-ch
+		}
+		cancel()
+	}()
+
+	// Multiplex shell to dataC, Stdout
+	go func() {
+		cli.Multiplex(ctx, []io.Writer{c.dataC, os.Stdout}, c.pty)
+		cancel()
+	}()
+
+	// Multiplex dataC to pty
+	go func() {
+		cli.Multiplex(ctx, []io.Writer{c.pty}, c.dataC)
+		cancel()
+	}()
+
+	// Multiplex Stdin to pty
+	go func() {
+		cli.Multiplex(ctx, []io.Writer{c.pty}, os.Stdin)
+		cancel()
+	}()
+
+	<-ctx.Done()
+
+	return nil
+}
+
+type winsize struct {
+	ws_row    uint16
+	ws_col    uint16
+	ws_xpixel uint16
+	ws_ypixel uint16
+}
+
+func Setsize(f *os.File, rows, cols int) error {
+	ws := winsize{ws_row: uint16(rows), ws_col: uint16(cols)}
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		syscall.TIOCSWINSZ,
+		uintptr(unsafe.Pointer(&ws)),
+	)
+	if errno != 0 {
+		return syscall.Errno(errno)
+	}
 	return nil
 }

@@ -1,5 +1,8 @@
 package wrp
 
+// DefaultAddress to connect to
+var DefaultAddress = "wrp.host:4242"
+
 // Mode is used to represent the mode of a client (read/write/speak) as well as
 // permission at the wrp level.
 type Mode uint32
@@ -40,8 +43,10 @@ type State struct {
 
 // HostUpdate represents an update to the wrp general state from its host.
 type HostUpdate struct {
+	ID  string
 	Key string
 
+	WindowSize  Size
 	DefaultMode Mode
 	Permissions Mode
 }
@@ -49,6 +54,7 @@ type HostUpdate struct {
 // ClientUpdate represents an update to the wrp state for a particular client,
 // sent from the client or the host.
 type ClientUpdate struct {
+	ID  string
 	Key string
 
 	Username string
