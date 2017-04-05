@@ -121,7 +121,7 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	out.Normf("\n")
-	out.Normf("Shareable wrp id: ")
+	out.Normf("wrp id: ")
 	out.Boldf("%s\n", c.id)
 	out.Normf("\n")
 
