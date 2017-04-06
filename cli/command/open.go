@@ -34,11 +34,13 @@ func init() {
 
 // Open spawns a new shared terminal.
 type Open struct {
-	address  string
-	shell    string
+	shell string
+
+	address string
+	session string
+	user    wrp.User
+
 	username string
-	key      string
-	id       string
 
 	cmd *exec.Cmd
 	pty *os.File
@@ -69,8 +71,8 @@ func (c *Open) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("wrp open [<id>]\n")
 	out.Normf("\n")
-	out.Normf("  Spawns a shared terminal under the provided id. Others can use the id to connect\n")
-	out.Normf("  to the shared terminal. If no ID is provided a random one is generated.\n")
+	out.Normf("  Spawns a shared terminal with the provided id. Others can use the id to connect.\n")
+	out.Normf("  If no id is provided a random one is generated.\n")
 	out.Normf("\n")
 	out.Normf("Arguments:\n")
 	out.Boldf("  id\n")
@@ -89,9 +91,9 @@ func (c *Open) Parse(
 	args []string,
 ) error {
 	if len(args) == 0 {
-		c.id = token.RandStr()
+		c.session = token.RandStr()
 	} else {
-		c.id = args[0]
+		c.session = args[0]
 	}
 
 	c.address = wrp.DefaultAddress
@@ -109,7 +111,10 @@ func (c *Open) Parse(
 	}
 	c.username = user.Username
 
-	c.key = token.RandStr()
+	c.user = wrp.User{
+		Token:  token.New("guest"),
+		Secret: "",
+	}
 
 	return nil
 }
@@ -122,7 +127,7 @@ func (c *Open) Execute(
 
 	out.Normf("\n")
 	out.Normf("wrp id: ")
-	out.Boldf("%s\n", c.id)
+	out.Boldf("%s\n", c.session)
 	out.Normf("\n")
 
 	conn, err := net.Dial("tcp", c.address)
@@ -194,14 +199,22 @@ func (c *Open) Execute(
 
 	// Send initial client update.
 	if err := c.updateW.Encode(wrp.ClientUpdate{
-		ID:       c.id,
-		Key:      c.key,
-		IsHost:   true,
+		Session:  c.session,
+		From:     c.user,
+		Hosting:  true,
 		Username: c.username,
 		Mode:     wrp.ModeRead | wrp.ModeWrite,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),
+		)
+	}
+
+	// Open data channel dataC.
+	c.dataC, err = session.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Data channel open error: %v", err),
 		)
 	}
 
@@ -214,14 +227,6 @@ func (c *Open) Execute(
 	}
 	c.hostW = gob.NewEncoder(c.hostC)
 
-	// Open data channel dataC.
-	c.dataC, err = session.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Data channel open error: %v", err),
-		)
-	}
-
 	// Send initial host update.
 	cols, rows, err := terminal.GetSize(stdin)
 	if err != nil {
@@ -231,8 +236,8 @@ func (c *Open) Execute(
 	}
 
 	if err := c.updateW.Encode(wrp.HostUpdate{
-		ID:         c.id,
-		Key:        c.key,
+		Session:    c.session,
+		From:       c.user,
 		WindowSize: wrp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
@@ -262,8 +267,8 @@ func (c *Open) Execute(
 			}
 
 			if err := c.hostW.Encode(wrp.HostUpdate{
-				ID:         c.id,
-				Key:        c.key,
+				Session:    c.session,
+				From:       c.user,
 				WindowSize: wrp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
 				out.Errof("[Error] Send host update error: %v\n", err)

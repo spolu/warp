@@ -17,7 +17,7 @@ import (
 type Srv struct {
 	address string
 
-	sessions map[string]*session
+	sessions map[string]*Session
 	mutex    *sync.Mutex
 }
 
@@ -28,7 +28,7 @@ func NewSrv(
 ) *Srv {
 	return &Srv{
 		address:  address,
-		sessions: map[string]*session{},
+		sessions: map[string]*Session{},
 		mutex:    &sync.Mutex{},
 	}
 }
@@ -75,22 +75,22 @@ func (s *Srv) handle(
 	ctx context.Context,
 	conn net.Conn,
 ) error {
-	session, err := yamux.Server(conn, nil)
+	mux, err := yamux.Server(conn, nil)
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Session error: %v", err),
 		)
 	}
-	// Closes stateC, updateC, dataC, [hostC,] session and conn.
-	defer session.Close()
+	// Closes stateC, updateC, dataC, [hostC,] mux and conn.
+	defer mux.Close()
 
-	c := &client{
-		conn:    conn,
-		session: session,
+	c := &Client{
+		conn: conn,
+		mux:  mux,
 	}
 
 	// Opens state channel stateC.
-	c.stateC, err = session.Open()
+	c.stateC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("State channel open error: %v", err),
@@ -99,7 +99,7 @@ func (s *Srv) handle(
 	c.stateW = gob.NewEncoder(c.stateC)
 
 	// Open update channel updateC.
-	c.updateC, err = session.Open()
+	c.updateC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Update channel open error: %v", err),
@@ -108,34 +108,35 @@ func (s *Srv) handle(
 	c.updateR = gob.NewDecoder(c.updateC)
 
 	var initial wrp.ClientUpdate
-	if err := updateR.Decode(&initial); err != nil {
+	if err := c.updateR.Decode(&initial); err != nil {
 		return errors.Trace(
-			errors.Newf("Handshake error: %v", err),
+			errors.Newf("Initial client update error: %v", err),
 		)
 	}
-	logging.Logf(
-		"[%s] Initial received: id=%s key=%s is_host=%t username=%s mode=%d\n",
+	logging.Logf(ctx,
+		"[%s] Initial client update received: "+
+			"session=%s user=%s hosting=%t username=%s mode=%d\n",
 		conn.RemoteAddr().String(),
-		initial.ID, initial.Key, initial.IsHost,
+		initial.Session, initial.From.Token, initial.Hosting,
 		initial.Username, initial.Mode,
 	)
 
-	c.key = initial.Key
+	c.user = initial.From
 	c.username = initial.Username
 	c.mode = initial.Mode
 
 	// Open data channel dataC.
-	c.dataC, err = session.Open()
+	c.dataC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Data channel open error: %v", err),
 		)
 	}
 
-	if initial.IsHost {
-		err = s.handleHost(ctx, initial.ID, client)
+	if initial.Hosting {
+		err = s.handleHost(ctx, initial.Session, c)
 	} else {
-		err = s.handleClient(ctx, initial.ID, client)
+		err = s.handleClient(ctx, initial.Session, c)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -147,9 +148,60 @@ func (s *Srv) handle(
 // exists or erroring accordingly.
 func (s *Srv) handleHost(
 	ctx context.Context,
-	id string,
-	client *client,
+	session string,
+	c *Client,
 ) error {
+	// Open host channel host.
+	hostC, err := c.mux.Open()
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Host channel open error: %v", err),
+		)
+	}
+	hostR := gob.NewDecoder(hostC)
+
+	var initial wrp.HostUpdate
+	if err := hostR.Decode(&initial); err != nil {
+		return errors.Trace(
+			errors.Newf("Initial host update error: %v", err),
+		)
+	}
+	logging.Logf(ctx,
+		"[%s] Initial host update received: "+
+			"session=%s user=%s\n",
+		c.conn.RemoteAddr().String(),
+		initial.Session, initial.From.Token,
+	)
+
+	// TODO create session
+	s.mutex.Lock()
+	_, ok := s.sessions[session]
+
+	if ok {
+		s.mutex.Unlock()
+		return errors.Trace(
+			errors.Newf("Host error: session already in use: %s", session),
+		)
+	}
+
+	s.sessions[session] = &Session{
+		token:      session,
+		windowSize: initial.WindowSize,
+		host:       c.user.Token,
+		clients:    map[string]*Client{},
+		hostC:      hostC,
+		hostR:      hostR,
+		data:       make(chan []byte),
+		mutex:      &sync.Mutex{},
+	}
+
+	s.mutex.Unlock()
+
+	err = s.sessions[session].handleHost(ctx, c)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	return nil
 }
 
@@ -157,20 +209,20 @@ func (s *Srv) handleHost(
 // erroring accordingly.
 func (s *Srv) handleClient(
 	ctx context.Context,
-	id string,
-	client *client,
+	session string,
+	c *Client,
 ) error {
 	s.mutex.Lock()
-	session, ok := s.sessions[id]
+	_, ok := s.sessions[session]
 	s.mutex.Unlock()
 
 	if !ok {
 		return errors.Trace(
-			errors.Newf("Client error: unknown session %s", id),
+			errors.Newf("Client error: unknown session %s", session),
 		)
 	}
 
-	err := session.handleClient(ctx, client)
+	err := s.sessions[session].handleClient(ctx, c)
 	if err != nil {
 		return errors.Trace(err)
 	}

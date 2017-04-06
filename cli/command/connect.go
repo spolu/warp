@@ -30,10 +30,11 @@ func init() {
 
 // Connect spawns a new shared terminal.
 type Connect struct {
-	id       string
-	address  string
+	address string
+	session string
+	user    wrp.User
+
 	username string
-	key      string
 
 	dataC   net.Conn
 	stateC  net.Conn
@@ -80,10 +81,10 @@ func (c *Connect) Parse(
 ) error {
 	if len(args) == 0 {
 		return errors.Trace(
-			errors.Newf("Id required."),
+			errors.Newf("Wrp id required."),
 		)
 	} else {
-		c.id = args[0]
+		c.session = args[0]
 	}
 
 	c.address = wrp.DefaultAddress
@@ -100,7 +101,10 @@ func (c *Connect) Parse(
 	}
 	c.username = user.Username
 
-	c.key = token.RandStr()
+	c.user = wrp.User{
+		Token:  token.New("guest"),
+		Secret: "",
+	}
 
 	return nil
 }
@@ -163,11 +167,11 @@ func (c *Connect) Execute(
 
 	// Send initial client update.
 	if err := c.updateW.Encode(wrp.ClientUpdate{
-		ID:       c.id,
-		Key:      c.key,
-		IsHost:   false,
+		Session:  c.session,
+		From:     c.user,
+		Hosting:  false,
 		Username: c.username,
-		Mode:     wrp.ModeRead | wrp.ModeWrite,
+		Mode:     wrp.ModeRead,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),

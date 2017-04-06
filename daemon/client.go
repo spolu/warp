@@ -6,14 +6,15 @@ import (
 	"net"
 
 	"github.com/hashicorp/yamux"
+	"github.com/spolu/wrp"
 )
 
-// client represents a client connected to the wrp
-type client struct {
-	key wrp.Key
+// Client represents a client connected to the wrp
+type Client struct {
+	user wrp.User
 
-	conn    net.Conn
-	session *yamux.Session
+	conn net.Conn
+	mux  *yamux.Session
 
 	username string
 	mode     wrp.Mode
@@ -22,7 +23,7 @@ type client struct {
 	stateW *gob.Encoder
 
 	updateC net.Conn
-	udpateR *gob.Decoder
+	updateR *gob.Decoder
 
 	dataC net.Conn
 

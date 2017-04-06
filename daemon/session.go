@@ -5,16 +5,18 @@ import (
 	"encoding/gob"
 	"net"
 	"sync"
+
+	"github.com/spolu/wrp"
 )
 
-// session represents oa pty served from a remote client attached to an id.
-type session struct {
-	id string
+// Session represents a pty served from a remote host attached to a token.
+type Session struct {
+	token string
 
 	windowSize wrp.Size
 
-	host    wrp.Key
-	clients map[wrp.Key]client
+	host    string
+	clients map[string]*Client
 
 	hostC net.Conn
 	hostR *gob.Decoder
@@ -24,18 +26,16 @@ type session struct {
 	mutex *sync.Mutex
 }
 
-func (s *session) handleHost(
+func (s *Session) handleHost(
 	ctx context.Context,
-	id string,
-	client *client,
+	client *Client,
 ) error {
 	return nil
 }
 
-func (s *session) handleClient(
+func (s *Session) handleClient(
 	ctx context.Context,
-	id string,
-	client *client,
+	client *Client,
 ) error {
 	return nil
 }
