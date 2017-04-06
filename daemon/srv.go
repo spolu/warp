@@ -75,6 +75,11 @@ func (s *Srv) handle(
 	ctx context.Context,
 	conn net.Conn,
 ) error {
+	logging.Logf(ctx,
+		"Handling new connection: remote=%s",
+		conn.RemoteAddr().String(),
+	)
+
 	mux, err := yamux.Server(conn, nil)
 	if err != nil {
 		return errors.Trace(
@@ -95,7 +100,7 @@ func (s *Srv) handle(
 	}
 
 	// Opens state channel stateC.
-	c.stateC, err = mux.Open()
+	c.stateC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("State channel open error: %v", err),
@@ -104,7 +109,7 @@ func (s *Srv) handle(
 	c.stateW = gob.NewEncoder(c.stateC)
 
 	// Open update channel updateC.
-	c.updateC, err = mux.Open()
+	c.updateC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Update channel open error: %v", err),
@@ -128,7 +133,7 @@ func (s *Srv) handle(
 	)
 
 	// Open data channel dataC.
-	c.dataC, err = mux.Open()
+	c.dataC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Data channel open error: %v", err),
@@ -156,7 +161,7 @@ func (s *Srv) handleHost(
 	c *Client,
 ) error {
 	// Open host channel host.
-	hostC, err := c.mux.Open()
+	hostC, err := c.mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Host channel open error: %v", err),

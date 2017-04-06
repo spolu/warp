@@ -1,15 +1,12 @@
 # todo
 
-  [ ] errorC
-  [ ] wrp ls # list active wrps
-  [ ] return meaningful error on failure to connect
-  [ ] update channel
+  [ ] errorC and meaningful errors to client
+  [ ] add top status line
   [ ] store pty state on server to redraw on connect
   [ ] in-wrp commands
     [ ] local unix socket that is a command channel > updateC
     [ ] wrp ls
     [ ] wrp authorize stan
-  [ ] add status line up top?
 
 # chat
 

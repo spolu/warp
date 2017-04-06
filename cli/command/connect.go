@@ -123,14 +123,14 @@ func (c *Connect) Execute(
 		)
 	}
 
-	session, err := yamux.Client(conn, nil)
+	mux, err := yamux.Client(conn, nil)
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Session error: %v", err),
 		)
 	}
-	// Closes stateC, updateC, dataC, session and conn.
-	defer session.Close()
+	// Closes stateC, updateC, dataC, mux and conn.
+	defer mux.Close()
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -149,7 +149,7 @@ func (c *Connect) Execute(
 	defer terminal.Restore(stdin, old)
 
 	// Opens state channel stateC.
-	c.stateC, err = session.Open()
+	c.stateC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("State channel open error: %v", err),
@@ -158,7 +158,7 @@ func (c *Connect) Execute(
 	c.stateR = gob.NewDecoder(c.stateC)
 
 	// Open update channel updateC.
-	c.updateC, err = session.Open()
+	c.updateC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Update channel open error: %v", err),
@@ -179,7 +179,7 @@ func (c *Connect) Execute(
 	}
 
 	// Open data channel dataC.
-	c.dataC, err = session.Open()
+	c.dataC, err = mux.Open()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Data channel open error: %v", err),
