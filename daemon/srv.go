@@ -48,7 +48,7 @@ func (s *Srv) Run(
 		conn, err := ln.Accept()
 		if err != nil {
 			logging.Logf(ctx,
-				"[%s] Error accepting connection: error=%v",
+				"Error accepting connection: remote=%s error=%v",
 				conn.RemoteAddr().String(), err,
 			)
 			continue
@@ -57,12 +57,12 @@ func (s *Srv) Run(
 			err := s.handle(ctx, conn)
 			if err != nil {
 				logging.Logf(ctx,
-					"[%s] Error handling connection: error=%v",
+					"Error handling connection: remote=%s error=%v",
 					conn.RemoteAddr().String(), err,
 				)
 			} else {
 				logging.Logf(ctx,
-					"[%s] Done handling connection",
+					"Done handling connection: remote=%s",
 					conn.RemoteAddr().String(),
 				)
 			}
@@ -84,9 +84,14 @@ func (s *Srv) handle(
 	// Closes stateC, updateC, dataC, [hostC,] mux and conn.
 	defer mux.Close()
 
+	// Create a new context for this client with its own cancelation function.
+	ctx, cancel := context.WithCancel(ctx)
+
 	c := &Client{
-		conn: conn,
-		mux:  mux,
+		conn:   conn,
+		mux:    mux,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// Opens state channel stateC.
@@ -113,16 +118,14 @@ func (s *Srv) handle(
 			errors.Newf("Initial client update error: %v", err),
 		)
 	}
-	logging.Logf(ctx,
-		"[%s] Initial client update received: "+
-			"session=%s user=%s hosting=%t username=%s\n",
-		conn.RemoteAddr().String(),
-		initial.Session, initial.From.Token,
-		initial.Hosting, initial.Username,
-	)
-
 	c.user = initial.From
 	c.username = initial.Username
+
+	logging.Logf(ctx,
+		"[%s] Initial client update received: "+
+			"session=%s hosting=%t username=%s\n",
+		c.user.String(), initial.Session, initial.Hosting, initial.Username,
+	)
 
 	// Open data channel dataC.
 	c.dataC, err = mux.Open()
@@ -134,11 +137,9 @@ func (s *Srv) handle(
 
 	if initial.Hosting {
 		// Initialize the host as read/write.
-		c.mode = wrp.ModeRead | wrp.ModeWrite
 		err = s.handleHost(ctx, initial.Session, c)
 	} else {
 		// Initialize clients as read only.
-		c.mode = wrp.ModeRead
 		err = s.handleClient(ctx, initial.Session, c)
 	}
 	if err != nil {
@@ -170,13 +171,10 @@ func (s *Srv) handleHost(
 		)
 	}
 	logging.Logf(ctx,
-		"[%s] Initial host update received: "+
-			"session=%s user=%s\n",
-		c.conn.RemoteAddr().String(),
-		initial.Session, initial.From.Token,
+		"[%s] Initial host update received: session=%s\n",
+		c.user.String(), initial.Session,
 	)
 
-	// TODO create session
 	s.mutex.Lock()
 	_, ok := s.sessions[session]
 
@@ -190,12 +188,21 @@ func (s *Srv) handleHost(
 	s.sessions[session] = &Session{
 		token:      session,
 		windowSize: initial.WindowSize,
-		host:       c.user.Token,
-		clients:    map[string]*Client{},
-		hostC:      hostC,
-		hostR:      hostR,
-		data:       make(chan []byte),
-		mutex:      &sync.Mutex{},
+		host: &UserState{
+			token:    c.user.Token,
+			username: c.username,
+			mode:     wrp.ModeRead | wrp.ModeWrite,
+			// Initialize host sessions as empty as the current client is the
+			// host session and does not act as "client". Subsequent client
+			// session coming from the host would be added to the host object
+			// sessions.
+			sessions: map[string]*Client{},
+		},
+		clients: map[string]*UserState{},
+		hostC:   hostC,
+		hostR:   hostR,
+		data:    make(chan []byte),
+		mutex:   &sync.Mutex{},
 	}
 
 	s.mutex.Unlock()
@@ -204,6 +211,15 @@ func (s *Srv) handleHost(
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	// Clean-up session.
+	logging.Logf(ctx,
+		"[%s] Cleaning-up session: session=%s",
+		c.user.String(), session,
+	)
+	s.mutex.Lock()
+	delete(s.sessions, session)
+	s.mutex.Unlock()
 
 	return nil
 }

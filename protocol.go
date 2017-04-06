@@ -1,5 +1,7 @@
 package wrp
 
+import "fmt"
+
 // DefaultAddress to connect to
 var DefaultAddress = "wrp.host:4242"
 
@@ -25,8 +27,16 @@ type Client struct {
 
 // User identifies a user.
 type User struct {
-	Token  string
-	Secret string
+	Token   string
+	Secret  string
+	Session string
+}
+
+func (u User) String() string {
+	return fmt.Sprintf(
+		"%s:%s",
+		u.Token, u.Session,
+	)
 }
 
 // State is the struct sent over the network to update the client state.
@@ -34,7 +44,7 @@ type State struct {
 	Session string
 
 	WindowSize Size
-	Host       string
+	Host       Client
 	Clients    map[string]Client
 }
 

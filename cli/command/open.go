@@ -112,8 +112,9 @@ func (c *Open) Parse(
 	c.username = user.Username
 
 	c.user = wrp.User{
-		Token:  token.New("guest"),
-		Secret: "",
+		Token:   token.New("guest"),
+		Secret:  "",
+		Session: token.New("session"),
 	}
 
 	return nil

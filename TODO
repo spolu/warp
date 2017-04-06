@@ -1,42 +1,18 @@
-# must-have
+# todo
 
-  [x] use env var for server to connect to
-  [x] clean up on disconnection of origin
-  [x] option to read-only
-  [x] resize on connect (send initial state)
+  [ ] errorC
   [ ] wrp ls # list active wrps
   [ ] return meaningful error on failure to connect
+  [ ] update channel
+  [ ] store pty state on server to redraw on connect
+  [ ] in-wrp commands
+    [ ] local unix socket that is a command channel > updateC
+    [ ] wrp ls
+    [ ] wrp authorize stan
+  [ ] add status line up top?
 
-# general improvment
+# chat
 
-  [ ] send whoami as part of handshake
-  [ ] add ability to send commands (change read/write status)
-    [ ] local unix socket that is a command channel
-    [ ] wrp session -w stan # remove write access
-    [ ] wrp session ls      # list lurkers
-    [ ] wrp session refresh # refresh terminal content
-
-# terminal improvments
-
-  [ ] add status line up top
-
-# audio channel
-
-  [ ] add support for audio capture and mutiplexing
-  [ ] wrp +m stan # enable mic
+  [ ] wrp chat :id
 
 
-# wrp 0.1
-
- [ ] in-wrp commands
- [ ] catch local username
- [ ] command channel (remove handshake)
- [ ] store pty state on server to redraw on connect
-
-```
-wrp open
-wrp connect :id
-wrp session +w stan
-wrp session ls
-wrp session +m stan
-```
