@@ -42,9 +42,7 @@ type HostUpdate struct {
 	ID  string
 	Key string
 
-	WindowSize  Size
-	DefaultMode Mode
-	Permissions Mode
+	WindowSize Size
 }
 
 // ClientUpdate represents an update to the wrp state for a particular client,

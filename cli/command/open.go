@@ -198,7 +198,7 @@ func (c *Open) Execute(
 		Key:      c.key,
 		IsHost:   true,
 		Username: c.username,
-		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+		Mode:     wrp.ModeRead | wrp.ModeWrite,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),
@@ -231,11 +231,9 @@ func (c *Open) Execute(
 	}
 
 	if err := c.updateW.Encode(wrp.HostUpdate{
-		ID:          c.id,
-		Key:         c.key,
-		WindowSize:  wrp.Size{Rows: rows, Cols: cols},
-		DefaultMode: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
-		Permissions: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+		ID:         c.id,
+		Key:        c.key,
+		WindowSize: wrp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send host update error: %v", err),
@@ -264,11 +262,9 @@ func (c *Open) Execute(
 			}
 
 			if err := c.hostW.Encode(wrp.HostUpdate{
-				ID:          c.id,
-				Key:         c.key,
-				WindowSize:  wrp.Size{Rows: rows, Cols: cols},
-				DefaultMode: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
-				Permissions: wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+				ID:         c.id,
+				Key:        c.key,
+				WindowSize: wrp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
 				out.Errof("[Error] Send host update error: %v\n", err)
 				break

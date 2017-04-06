@@ -167,7 +167,7 @@ func (c *Connect) Execute(
 		Key:      c.key,
 		IsHost:   false,
 		Username: c.username,
-		Mode:     wrp.ModeRead | wrp.ModeWrite | wrp.ModeSpeak,
+		Mode:     wrp.ModeRead | wrp.ModeWrite,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),
