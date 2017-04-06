@@ -203,7 +203,6 @@ func (c *Open) Execute(
 		From:     c.user,
 		Hosting:  true,
 		Username: c.username,
-		Mode:     wrp.ModeRead | wrp.ModeWrite,
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send client update error: %v", err),

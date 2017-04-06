@@ -26,6 +26,14 @@ type Session struct {
 	mutex *sync.Mutex
 }
 
+func (s *Session) rcvData(
+	ctx context.Context,
+	client *Client,
+	data []byte,
+) error {
+	return nil
+}
+
 func (s *Session) handleHost(
 	ctx context.Context,
 	client *Client,

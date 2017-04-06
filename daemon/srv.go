@@ -115,15 +115,14 @@ func (s *Srv) handle(
 	}
 	logging.Logf(ctx,
 		"[%s] Initial client update received: "+
-			"session=%s user=%s hosting=%t username=%s mode=%d\n",
+			"session=%s user=%s hosting=%t username=%s\n",
 		conn.RemoteAddr().String(),
-		initial.Session, initial.From.Token, initial.Hosting,
-		initial.Username, initial.Mode,
+		initial.Session, initial.From.Token,
+		initial.Hosting, initial.Username,
 	)
 
 	c.user = initial.From
 	c.username = initial.Username
-	c.mode = initial.Mode
 
 	// Open data channel dataC.
 	c.dataC, err = mux.Open()
@@ -134,8 +133,12 @@ func (s *Srv) handle(
 	}
 
 	if initial.Hosting {
+		// Initialize the host as read/write.
+		c.mode = wrp.ModeRead | wrp.ModeWrite
 		err = s.handleHost(ctx, initial.Session, c)
 	} else {
+		// Initialize clients as read only.
+		c.mode = wrp.ModeRead
 		err = s.handleClient(ctx, initial.Session, c)
 	}
 	if err != nil {

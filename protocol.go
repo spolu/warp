@@ -54,8 +54,6 @@ type ClientUpdate struct {
 	Session string
 	From    User
 
-	Hosting bool
-
+	Hosting  bool
 	Username string
-	Mode     Mode
 }
