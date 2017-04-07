@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -110,6 +111,16 @@ func (c *Open) Parse(
 		)
 	}
 	c.username = user.Username
+
+	// Sets the BASH prompt
+	os.Setenv(
+		"PS1",
+		fmt.Sprintf(
+			//"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\\033[01;32m\\]\\h\\[\033[00m\\]:\\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+			"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+			c.session,
+		),
+	)
 
 	c.user = wrp.User{
 		Token:   token.New("guest"),
