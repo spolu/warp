@@ -98,6 +98,9 @@ func (c *Open) Parse(
 	}
 
 	c.address = wrp.DefaultAddress
+	if os.Getenv("WRPD_ADDRESS") != "" {
+		c.address = os.Getenv("WRPD_ADDRESS")
+	}
 
 	c.shell = "/bin/bash"
 	if os.Getenv("SHELL") != "" {
@@ -116,7 +119,6 @@ func (c *Open) Parse(
 	os.Setenv(
 		"PS1",
 		fmt.Sprintf(
-			//"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\\033[01;32m\\]\\h\\[\033[00m\\]:\\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
 			"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
 			c.session,
 		),
@@ -258,7 +260,25 @@ func (c *Open) Execute(
 
 	// Main loops.
 
-	// Forward window resizes to pty and stateChannel
+	// Listen for state updates.
+	go func() {
+		for {
+			var st wrp.State
+			if err := c.stateR.Decode(&st); err != nil {
+				out.Errof("[Error] State channel decode error: %v\n", err)
+				break
+			}
+
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
+		}
+		cancel()
+	}()
+
+	// Forward window resizes to pty and hostC
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)

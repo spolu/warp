@@ -20,6 +20,15 @@ type UserState struct {
 	sessions map[string]*Client
 }
 
+// HostState represents the state of the host, in particular the host session,
+// along with its UserState.
+type HostState struct {
+	UserState
+	session *Client
+	hostC   net.Conn
+	hostR   *gob.Decoder
+}
+
 // Client returns a wrp.Client from the current UserState.
 func (u *UserState) Client(
 	ctx context.Context,
@@ -36,11 +45,8 @@ type Session struct {
 
 	windowSize wrp.Size
 
-	host    *UserState
+	host    *HostState
 	clients map[string]*UserState
-
-	hostC net.Conn
-	hostR *gob.Decoder
 
 	data chan []byte
 
@@ -57,7 +63,7 @@ func (s *Session) State(
 	state := wrp.State{
 		Session:    s.token,
 		WindowSize: s.windowSize,
-		Host:       s.host.Client(ctx),
+		Host:       s.host.UserState.Client(ctx),
 		Clients:    map[string]wrp.Client{},
 	}
 	for token, user := range s.clients {
@@ -78,28 +84,43 @@ func (s *Session) Clients(
 			clients = append(clients, c)
 		}
 	}
-	for _, c := range s.host.sessions {
+	for _, c := range s.host.UserState.sessions {
 		clients = append(clients, c)
 	}
 	s.mutex.Unlock()
 	return clients
 }
 
-// sendStateUpdate updates all clients with the current state.
-func (s *Session) sendStateUpdate(
+// updateClients updates all clients with the current state.
+func (s *Session) updateClients(
 	ctx context.Context,
 ) {
 	st := s.State(ctx)
 	clients := s.Clients(ctx)
 	for _, c := range clients {
 		logging.Logf(ctx,
-			"[%s] Sending state: session=%s cols=%d rows=%d",
+			"[%s] Sending (client) state: session=%s cols=%d rows=%d",
 			c.user.String(),
 			st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
 		)
 
 		c.stateW.Encode(st)
 	}
+}
+
+// updateHost updates all clients with the current state.
+func (s *Session) updateHost(
+	ctx context.Context,
+) {
+	st := s.State(ctx)
+
+	logging.Logf(ctx,
+		"[%s] Sending (host) state: session=%s cols=%d rows=%d",
+		s.host.session.user.String(),
+		st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+	)
+
+	s.host.session.stateW.Encode(st)
 }
 
 // rcvClientData handles incoming client data and commits it to the data
@@ -152,7 +173,7 @@ func (s *Session) handleHost(
 	HOSTLOOP:
 		for {
 			var st wrp.HostUpdate
-			if err := s.hostR.Decode(&st); err != nil {
+			if err := s.host.hostR.Decode(&st); err != nil {
 				c.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf("Host update decoding failed: %v", err),
@@ -205,7 +226,7 @@ func (s *Session) handleHost(
 				s.token, st.WindowSize.Rows, st.WindowSize.Cols,
 			)
 
-			s.sendStateUpdate(ctx)
+			s.updateClients(ctx)
 		}
 		c.cancel()
 	}()
@@ -295,14 +316,14 @@ func (s *Session) handleClient(
 	// Add the client.
 	s.mutex.Lock()
 	isHostSession := false
-	if c.user.Token == s.host.token {
+	if c.user.Token == s.host.UserState.token {
 		isHostSession = true
 		// If we have a session conflict, let's kill the old one.
-		if c, ok := s.host.sessions[c.user.Session]; ok {
+		if c, ok := s.host.UserState.sessions[c.user.Session]; ok {
 			c.cancel()
-			delete(s.host.sessions, c.user.Session)
+			delete(s.host.UserState.sessions, c.user.Session)
 		}
-		s.host.sessions[c.user.Session] = c
+		s.host.UserState.sessions[c.user.Session] = c
 	} else {
 		if _, ok := s.clients[c.user.Token]; !ok {
 			s.clients[c.user.Token] = &UserState{
@@ -354,13 +375,15 @@ func (s *Session) handleClient(
 
 	// Send initial state.
 	st := s.State(ctx)
-
 	logging.Logf(ctx,
 		"[%s] Sending initial state: session=%s cols=%d rows=%d",
 		c.user.String(), st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
 	)
-
 	c.stateW.Encode(st)
+
+	// Update host and clients.
+	s.updateHost(ctx)
+	s.updateClients(ctx)
 
 	logging.Logf(ctx,
 		"[%s] Client running: session=%s",
@@ -386,7 +409,8 @@ func (s *Session) handleClient(
 	s.mutex.Unlock()
 
 	// Update remaining clients
-	s.sendStateUpdate(ctx)
+	s.updateClients(ctx)
+	s.updateHost(ctx)
 
 	return nil
 }

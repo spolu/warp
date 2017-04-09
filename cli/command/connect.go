@@ -88,10 +88,9 @@ func (c *Connect) Parse(
 	}
 
 	c.address = wrp.DefaultAddress
-
-	// if os.Getenv("WRPD_ADDRESS") != "" {
-	// 	c.address = os.Getenv("WRPD_ADDRESS")
-	// }
+	if os.Getenv("WRPD_ADDRESS") != "" {
+		c.address = os.Getenv("WRPD_ADDRESS")
+	}
 
 	user, err := user.Current()
 	if err != nil {

@@ -43,9 +43,10 @@ func (u User) String() string {
 type State struct {
 	Session string
 
+	Host    Client
+	Clients map[string]Client
+
 	WindowSize Size
-	Host       Client
-	Clients    map[string]Client
 }
 
 // HostUpdate represents an update to the wrp general state from its host.

@@ -193,19 +193,22 @@ func (s *Srv) handleHost(
 	s.sessions[session] = &Session{
 		token:      session,
 		windowSize: initial.WindowSize,
-		host: &UserState{
-			token:    c.user.Token,
-			username: c.username,
-			mode:     wrp.ModeRead | wrp.ModeWrite,
-			// Initialize host sessions as empty as the current client is the
-			// host session and does not act as "client". Subsequent client
-			// session coming from the host would be added to the host object
-			// sessions.
-			sessions: map[string]*Client{},
+		host: &HostState{
+			UserState: UserState{
+				token:    c.user.Token,
+				username: c.username,
+				mode:     wrp.ModeRead | wrp.ModeWrite,
+				// Initialize host sessions as empty as the current client is the
+				// host session and does not act as "client". Subsequent client
+				// session coming from the host would be added to the host object
+				// sessions.
+				sessions: map[string]*Client{},
+			},
+			session: c,
+			hostC:   hostC,
+			hostR:   hostR,
 		},
 		clients: map[string]*UserState{},
-		hostC:   hostC,
-		hostR:   hostR,
 		data:    make(chan []byte),
 		mutex:   &sync.Mutex{},
 	}

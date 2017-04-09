@@ -1,15 +1,19 @@
 # todo
 
+  [ ] rename wrp/warp Session/Warp
   [ ] errorC and meaningful errors to client
-  [ ] add top status line
-  [ ] store pty state on server to redraw on connect
+  [ ] PROMPT support for zsh, csh
   [ ] in-wrp commands
     [ ] local unix socket that is a command channel > updateC
     [ ] wrp ls
     [ ] wrp authorize stan
+  [ ] TLS
+  [ ] prevent write at host level
 
 # chat
 
   [ ] wrp chat :id
 
-
+  wrp open stan-dev
+    wrp connect stan-dev
+    wrp voice stan-dev
