@@ -25,23 +25,23 @@ type Client struct {
 	Mode     Mode
 }
 
-// User identifies a user.
-type User struct {
-	Token   string
-	Secret  string
-	Session string
+// Session identifies a user's session.
+type Session struct {
+	Token  string
+	User   string
+	Secret string
 }
 
-func (u User) String() string {
+func (u Session) String() string {
 	return fmt.Sprintf(
 		"%s:%s",
-		u.Token, u.Session,
+		u.User, u.Token,
 	)
 }
 
 // State is the struct sent over the network to update the client state.
 type State struct {
-	Session string
+	Warp string
 
 	Host    Client
 	Clients map[string]Client
@@ -51,8 +51,8 @@ type State struct {
 
 // HostUpdate represents an update to the wrp general state from its host.
 type HostUpdate struct {
-	Session string
-	From    User
+	Warp string
+	From Session
 
 	WindowSize Size
 	Modes      map[string]Mode
@@ -62,8 +62,8 @@ type HostUpdate struct {
 // sent from the client or the host. A initial update is sent both when opening
 // or connecting to a session.
 type ClientUpdate struct {
-	Session string
-	From    User
+	Warp string
+	From Session
 
 	Hosting  bool
 	Username string

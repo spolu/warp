@@ -17,8 +17,8 @@ import (
 type Srv struct {
 	address string
 
-	sessions map[string]*Session
-	mutex    *sync.Mutex
+	warps map[string]*Warp
+	mutex *sync.Mutex
 }
 
 // NewSrv constructs a Srv ready to start serving requests.
@@ -27,9 +27,9 @@ func NewSrv(
 	address string,
 ) *Srv {
 	return &Srv{
-		address:  address,
-		sessions: map[string]*Session{},
-		mutex:    &sync.Mutex{},
+		address: address,
+		warps:   map[string]*Warp{},
+		mutex:   &sync.Mutex{},
 	}
 }
 
@@ -123,13 +123,13 @@ func (s *Srv) handle(
 			errors.Newf("Initial client update error: %v", err),
 		)
 	}
-	c.user = initial.From
+	c.session = initial.From
 	c.username = initial.Username
 
 	logging.Logf(ctx,
 		"[%s] Initial client update received: "+
-			"session=%s hosting=%t username=%s\n",
-		c.user.String(), initial.Session, initial.Hosting, initial.Username,
+			"warp=%s hosting=%t username=%s\n",
+		c.session.String(), initial.Warp, initial.Hosting, initial.Username,
 	)
 
 	// Open data channel dataC.
@@ -142,10 +142,10 @@ func (s *Srv) handle(
 
 	if initial.Hosting {
 		// Initialize the host as read/write.
-		err = s.handleHost(ctx, initial.Session, c)
+		err = s.handleHost(ctx, initial.Warp, c)
 	} else {
 		// Initialize clients as read only.
-		err = s.handleClient(ctx, initial.Session, c)
+		err = s.handleClient(ctx, initial.Warp, c)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -153,11 +153,11 @@ func (s *Srv) handle(
 	return nil
 }
 
-// handleHost handles an host connecting, creating the session if it does not
+// handleHost handles an host connecting, creating the warp if it does not
 // exists or erroring accordingly.
 func (s *Srv) handleHost(
 	ctx context.Context,
-	session string,
+	warp string,
 	c *Client,
 ) error {
 	// Open host channel host.
@@ -176,32 +176,32 @@ func (s *Srv) handleHost(
 		)
 	}
 	logging.Logf(ctx,
-		"[%s] Initial host update received: session=%s\n",
-		c.user.String(), initial.Session,
+		"[%s] Initial host update received: warp=%s\n",
+		c.session.String(), initial.Warp,
 	)
 
 	s.mutex.Lock()
-	_, ok := s.sessions[session]
+	_, ok := s.warps[warp]
 
 	if ok {
 		s.mutex.Unlock()
 		return errors.Trace(
-			errors.Newf("Host error: session already in use: %s", session),
+			errors.Newf("Host error: warp already in use: %s", warp),
 		)
 	}
 
-	s.sessions[session] = &Session{
-		token:      session,
+	s.warps[warp] = &Warp{
+		token:      warp,
 		windowSize: initial.WindowSize,
 		host: &HostState{
 			UserState: UserState{
-				token:    c.user.Token,
+				token:    c.session.Token,
 				username: c.username,
 				mode:     wrp.ModeRead | wrp.ModeWrite,
-				// Initialize host sessions as empty as the current client is the
-				// host session and does not act as "client". Subsequent client
-				// session coming from the host would be added to the host object
-				// sessions.
+				// Initialize host sessions as empty as the current client is
+				// the host session and does not act as "client". Subsequent
+				// client session coming from the host would be added to this
+				// list.
 				sessions: map[string]*Client{},
 			},
 			session: c,
@@ -215,41 +215,41 @@ func (s *Srv) handleHost(
 
 	s.mutex.Unlock()
 
-	err = s.sessions[session].handleHost(ctx, c)
+	err = s.warps[warp].handleHost(ctx, c)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	// Clean-up session.
+	// Clean-up warp.
 	logging.Logf(ctx,
-		"[%s] Cleaning-up session: session=%s",
-		c.user.String(), session,
+		"[%s] Cleaning-up warp: warp=%s",
+		c.session.String(), warp,
 	)
 	s.mutex.Lock()
-	delete(s.sessions, session)
+	delete(s.warps, warp)
 	s.mutex.Unlock()
 
 	return nil
 }
 
-// handleClient handles a client connecting, retrieving the required session or
+// handleClient handles a client connecting, retrieving the required warp or
 // erroring accordingly.
 func (s *Srv) handleClient(
 	ctx context.Context,
-	session string,
+	warp string,
 	c *Client,
 ) error {
 	s.mutex.Lock()
-	_, ok := s.sessions[session]
+	_, ok := s.warps[warp]
 	s.mutex.Unlock()
 
 	if !ok {
 		return errors.Trace(
-			errors.Newf("Client error: unknown session %s", session),
+			errors.Newf("Client error: unknown warp %s", warp),
 		)
 	}
 
-	err := s.sessions[session].handleClient(ctx, c)
+	err := s.warps[warp].handleClient(ctx, c)
 	if err != nil {
 		return errors.Trace(err)
 	}

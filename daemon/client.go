@@ -12,7 +12,7 @@ import (
 
 // Client represents a client connected to the wrp
 type Client struct {
-	user wrp.User
+	session wrp.Session
 
 	username string
 

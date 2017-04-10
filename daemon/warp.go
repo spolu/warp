@@ -39,8 +39,8 @@ func (u *UserState) Client(
 	}
 }
 
-// Session represents a pty served from a remote host attached to a token.
-type Session struct {
+// Warp represents a pty served from a remote host attached to a token.
+type Warp struct {
 	token string
 
 	windowSize wrp.Size
@@ -55,18 +55,18 @@ type Session struct {
 
 // State computes a wrp.State from the current session. It acquires the session
 // lock.
-func (s *Session) State(
+func (w *Warp) State(
 	ctx context.Context,
 ) wrp.State {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
 	state := wrp.State{
-		Session:    s.token,
-		WindowSize: s.windowSize,
-		Host:       s.host.UserState.Client(ctx),
+		Warp:       w.token,
+		WindowSize: w.windowSize,
+		Host:       w.host.UserState.Client(ctx),
 		Clients:    map[string]wrp.Client{},
 	}
-	for token, user := range s.clients {
+	for token, user := range w.clients {
 		state.Clients[token] = user.Client(ctx)
 	}
 
@@ -74,34 +74,34 @@ func (s *Session) State(
 }
 
 // Clients return all connected clients that are not the host client.
-func (s *Session) Clients(
+func (w *Warp) Clients(
 	ctx context.Context,
 ) []*Client {
 	clients := []*Client{}
-	s.mutex.Lock()
-	for _, user := range s.clients {
+	w.mutex.Lock()
+	for _, user := range w.clients {
 		for _, c := range user.sessions {
 			clients = append(clients, c)
 		}
 	}
-	for _, c := range s.host.UserState.sessions {
+	for _, c := range w.host.UserState.sessions {
 		clients = append(clients, c)
 	}
-	s.mutex.Unlock()
+	w.mutex.Unlock()
 	return clients
 }
 
 // updateClients updates all clients with the current state.
-func (s *Session) updateClients(
+func (w *Warp) updateClients(
 	ctx context.Context,
 ) {
-	st := s.State(ctx)
-	clients := s.Clients(ctx)
+	st := w.State(ctx)
+	clients := w.Clients(ctx)
 	for _, c := range clients {
 		logging.Logf(ctx,
-			"[%s] Sending (client) state: session=%s cols=%d rows=%d",
-			c.user.String(),
-			st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+			"[%s] Sending (client) state: warp=%s cols=%d rows=%d",
+			c.session.String(),
+			st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
 		)
 
 		c.stateW.Encode(st)
@@ -109,47 +109,47 @@ func (s *Session) updateClients(
 }
 
 // updateHost updates all clients with the current state.
-func (s *Session) updateHost(
+func (w *Warp) updateHost(
 	ctx context.Context,
 ) {
-	st := s.State(ctx)
+	st := w.State(ctx)
 
 	logging.Logf(ctx,
-		"[%s] Sending (host) state: session=%s cols=%d rows=%d",
-		s.host.session.user.String(),
-		st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+		"[%s] Sending (host) state: warp=%s cols=%d rows=%d",
+		w.host.session.session.String(),
+		st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
 	)
 
-	s.host.session.stateW.Encode(st)
+	w.host.session.stateW.Encode(st)
 }
 
 // rcvClientData handles incoming client data and commits it to the data
 // channel if the client is authorized to do so.
-func (s *Session) rcvClientData(
+func (w *Warp) rcvClientData(
 	ctx context.Context,
 	c *Client,
 	data []byte,
 ) {
 	var mode wrp.Mode
-	s.mutex.Lock()
-	mode = s.clients[c.user.Token].mode
-	s.mutex.Unlock()
+	w.mutex.Lock()
+	mode = w.clients[c.session.User].mode
+	w.mutex.Unlock()
 
 	if mode&wrp.ModeWrite != 0 {
-		s.data <- data
+		w.data <- data
 	}
 }
 
-func (s *Session) rcvHostData(
+func (w *Warp) rcvHostData(
 	ctx context.Context,
 	client *Client,
 	data []byte,
 ) {
-	clients := s.Clients(ctx)
+	clients := w.Clients(ctx)
 	for _, cc := range clients {
 		logging.Logf(ctx,
-			"[%s] Sending data to client: session=%s size=%d",
-			cc.user.String(), s.token, len(data),
+			"[%s] Sending data to client: warp=%s size=%d",
+			cc.session.String(), w.token, len(data),
 		)
 		_, err := cc.dataC.Write(data)
 		if err != nil {
@@ -164,7 +164,7 @@ func (s *Session) rcvHostData(
 	}
 }
 
-func (s *Session) handleHost(
+func (w *Warp) handleHost(
 	ctx context.Context,
 	c *Client,
 ) error {
@@ -173,7 +173,7 @@ func (s *Session) handleHost(
 	HOSTLOOP:
 		for {
 			var st wrp.HostUpdate
-			if err := s.host.hostR.Decode(&st); err != nil {
+			if err := w.host.hostR.Decode(&st); err != nil {
 				c.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf("Host update decoding failed: %v", err),
@@ -181,16 +181,16 @@ func (s *Session) handleHost(
 				break HOSTLOOP
 			}
 
-			if st.Session != s.token {
+			if st.Warp != w.token {
 				c.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf(
-						"Host update session mismatch: %s", st.Session,
+						"Host update warp mismatch: %s", st.Warp,
 					),
 				)
 				break HOSTLOOP
 			}
-			if st.From.String() != c.user.String() {
+			if st.From.String() != c.session.String() {
 				c.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf(
@@ -201,7 +201,7 @@ func (s *Session) handleHost(
 			}
 
 			for token, _ := range st.Modes {
-				_, ok := s.clients[token]
+				_, ok := w.clients[token]
 				if !ok {
 					c.SendError(ctx,
 						"invalid_host_update",
@@ -213,20 +213,20 @@ func (s *Session) handleHost(
 				}
 			}
 
-			s.mutex.Lock()
-			s.windowSize = st.WindowSize
+			w.mutex.Lock()
+			w.windowSize = st.WindowSize
 			for token, mode := range st.Modes {
-				s.clients[token].mode = mode
+				w.clients[token].mode = mode
 			}
-			s.mutex.Unlock()
+			w.mutex.Unlock()
 
 			logging.Logf(ctx,
-				"[%s] Received host update: session=%s cols=%d rows=%d",
-				c.user.String(),
-				s.token, st.WindowSize.Rows, st.WindowSize.Cols,
+				"[%s] Received host update: warp=%s cols=%d rows=%d",
+				c.session.String(),
+				w.token, st.WindowSize.Rows, st.WindowSize.Cols,
 			)
 
-			s.updateClients(ctx)
+			w.updateClients(ctx)
 		}
 		c.cancel()
 	}()
@@ -241,10 +241,10 @@ func (s *Session) handleHost(
 				copy(cpy, buf)
 
 				logging.Logf(ctx,
-					"[%s] Received data from host: session=%s size=%d",
-					c.user.String(), s.token, nr,
+					"[%s] Received data from host: warp=%s size=%d",
+					c.session.String(), w.token, nr,
 				)
-				s.rcvHostData(ctx, c, cpy)
+				w.rcvHostData(ctx, c, cpy)
 			}
 			if err != nil {
 				c.SendError(ctx,
@@ -266,11 +266,11 @@ func (s *Session) handleHost(
 	go func() {
 		for {
 			select {
-			case buf := <-s.data:
+			case buf := <-w.data:
 
 				logging.Logf(ctx,
-					"[%s] Sending to host: session=%s size=%d",
-					c.user.String(), s.token, len(buf),
+					"[%s] Sending to host: warp=%s size=%d",
+					c.session.String(), w.token, len(buf),
 				)
 
 				_, err := c.dataC.Write(buf)
@@ -290,18 +290,18 @@ func (s *Session) handleHost(
 	}()
 
 	logging.Logf(ctx,
-		"[%s] Host running: session=%s",
-		c.user.String(), s.token,
+		"[%s] Host running: warp=%s",
+		c.session.String(), w.token,
 	)
 
 	<-c.ctx.Done()
 
 	// Cancel all clients.
 	logging.Logf(ctx,
-		"[%s] Cancelling all clients: session=%s",
-		c.user.String(), s.token,
+		"[%s] Cancelling all clients: warp=%s",
+		c.session.String(), w.token,
 	)
-	clients := s.Clients(ctx)
+	clients := w.Clients(ctx)
 	for _, cc := range clients {
 		cc.cancel()
 	}
@@ -309,38 +309,38 @@ func (s *Session) handleHost(
 	return nil
 }
 
-func (s *Session) handleClient(
+func (w *Warp) handleClient(
 	ctx context.Context,
 	c *Client,
 ) error {
 	// Add the client.
-	s.mutex.Lock()
+	w.mutex.Lock()
 	isHostSession := false
-	if c.user.Token == s.host.UserState.token {
+	if c.session.User == w.host.UserState.token {
 		isHostSession = true
 		// If we have a session conflict, let's kill the old one.
-		if c, ok := s.host.UserState.sessions[c.user.Session]; ok {
+		if c, ok := w.host.UserState.sessions[c.session.Token]; ok {
 			c.cancel()
-			delete(s.host.UserState.sessions, c.user.Session)
+			delete(w.host.UserState.sessions, c.session.Token)
 		}
-		s.host.UserState.sessions[c.user.Session] = c
+		w.host.UserState.sessions[c.session.Token] = c
 	} else {
-		if _, ok := s.clients[c.user.Token]; !ok {
-			s.clients[c.user.Token] = &UserState{
-				token:    c.user.Token,
+		if _, ok := w.clients[c.session.User]; !ok {
+			w.clients[c.session.User] = &UserState{
+				token:    c.session.User,
 				username: c.username,
 				mode:     wrp.ModeRead,
 				sessions: map[string]*Client{},
 			}
 		}
 		// If we have a session conflict, let's kill the old one.
-		if c, ok := s.clients[c.user.Token].sessions[c.user.Session]; ok {
+		if c, ok := w.clients[c.session.User].sessions[c.session.Token]; ok {
 			c.cancel()
-			delete(s.clients[c.user.Token].sessions, c.user.Session)
+			delete(w.clients[c.session.User].sessions, c.session.Token)
 		}
-		s.clients[c.user.Token].sessions[c.user.Session] = c
+		w.clients[c.session.User].sessions[c.session.Token] = c
 	}
-	s.mutex.Unlock()
+	w.mutex.Unlock()
 
 	// Receive client data.
 	go func() {
@@ -352,10 +352,10 @@ func (s *Session) handleClient(
 				copy(cpy, buf)
 
 				fmt.Printf(
-					"[%s] Received data from client: session=%s size=%d\n",
-					c.user.String(), s.token, nr,
+					"[%s] Received data from client: warp=%s size=%d\n",
+					c.session.String(), w.token, nr,
 				)
-				s.rcvClientData(ctx, c, cpy)
+				w.rcvClientData(ctx, c, cpy)
 			}
 			if err != nil {
 				c.SendError(ctx,
@@ -374,43 +374,43 @@ func (s *Session) handleClient(
 	}()
 
 	// Send initial state.
-	st := s.State(ctx)
+	st := w.State(ctx)
 	logging.Logf(ctx,
-		"[%s] Sending initial state: session=%s cols=%d rows=%d",
-		c.user.String(), st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+		"[%s] Sending initial state: warp=%s cols=%d rows=%d",
+		c.session.String(), st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
 	)
 	c.stateW.Encode(st)
 
 	// Update host and clients.
-	s.updateHost(ctx)
-	s.updateClients(ctx)
+	w.updateHost(ctx)
+	w.updateClients(ctx)
 
 	logging.Logf(ctx,
-		"[%s] Client running: session=%s",
-		c.user.String(), s.token,
+		"[%s] Client running: warp=%s",
+		c.session.String(), w.token,
 	)
 
 	<-c.ctx.Done()
 
 	// Clean-up client.
 	logging.Logf(ctx,
-		"[%s] Cleaning-up client: session=%s",
-		c.user.String(), s.token,
+		"[%s] Cleaning-up client: warp=%s",
+		c.session.String(), w.token,
 	)
-	s.mutex.Lock()
+	w.mutex.Lock()
 	if isHostSession {
-		delete(s.host.sessions, c.user.Session)
+		delete(w.host.sessions, c.session.Token)
 	} else {
-		delete(s.clients[c.user.Token].sessions, c.user.Session)
-		if len(s.clients[c.user.Token].sessions) == 0 {
-			delete(s.clients, c.user.Token)
+		delete(w.clients[c.session.User].sessions, c.session.Token)
+		if len(w.clients[c.session.User].sessions) == 0 {
+			delete(w.clients, c.session.User)
 		}
 	}
-	s.mutex.Unlock()
+	w.mutex.Unlock()
 
 	// Update remaining clients
-	s.updateClients(ctx)
-	s.updateHost(ctx)
+	w.updateClients(ctx)
+	w.updateHost(ctx)
 
 	return nil
 }
