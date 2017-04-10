@@ -116,13 +116,12 @@ func (c *Open) Parse(
 	c.username = user.Username
 
 	// Sets the BASH prompt
-	os.Setenv(
-		"PS1",
-		fmt.Sprintf(
-			"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
-			c.session,
-		),
+	prompt := fmt.Sprintf(
+		"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+		c.session,
 	)
+	os.Setenv("PS1", prompt)
+	os.Setenv("PROMPT", prompt)
 
 	c.user = wrp.User{
 		Token:   token.New("guest"),
