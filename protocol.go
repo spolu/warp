@@ -3,7 +3,7 @@ package wrp
 import "fmt"
 
 // DefaultAddress to connect to
-var DefaultAddress = "wrp.host:4242"
+var DefaultAddress = "warp.link:4242"
 
 // Mode is used to represent the mode of a client (read/write).
 type Mode uint32

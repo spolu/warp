@@ -10,8 +10,8 @@ import (
 	"github.com/spolu/wrp/lib/logging"
 )
 
-// Client represents a client connected to the wrp
-type Client struct {
+// Session represents a client session connected to the warp.
+type Session struct {
 	session wrp.Session
 
 	username string
@@ -31,14 +31,14 @@ type Client struct {
 	cancel func()
 }
 
-func (c *Client) SendError(
+func (ss *Session) SendError(
 	ctx context.Context,
 	code string,
 	message string,
 ) {
 	// TODO actually send error
 	logging.Logf(ctx,
-		"[%s] Client error: code=%s message=%s",
-		c.conn.RemoteAddr().String(), code, message,
+		"[%s] Session error: code=%s message=%s",
+		ss.session.String(), code, message,
 	)
 }

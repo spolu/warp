@@ -38,8 +38,8 @@ type Open struct {
 	shell string
 
 	address string
-	session string
-	user    wrp.User
+	warp    string
+	session wrp.Session
 
 	username string
 
@@ -92,9 +92,9 @@ func (c *Open) Parse(
 	args []string,
 ) error {
 	if len(args) == 0 {
-		c.session = token.RandStr()
+		c.warp = token.RandStr()
 	} else {
-		c.session = args[0]
+		c.warp = args[0]
 	}
 
 	c.address = wrp.DefaultAddress
@@ -117,16 +117,16 @@ func (c *Open) Parse(
 
 	// Sets the BASH prompt
 	prompt := fmt.Sprintf(
-		"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
-		c.session,
+		"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+		c.warp,
 	)
 	os.Setenv("PS1", prompt)
 	os.Setenv("PROMPT", prompt)
 
-	c.user = wrp.User{
-		Token:   token.New("guest"),
-		Secret:  "",
-		Session: token.New("session"),
+	c.session = wrp.Session{
+		Token:  token.New("session"),
+		User:   token.New("guest"),
+		Secret: token.RandStr(),
 	}
 
 	return nil
@@ -139,8 +139,8 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	out.Normf("\n")
-	out.Normf("wrp id: ")
-	out.Boldf("%s\n", c.session)
+	out.Normf("warp: ")
+	out.Boldf("%s\n", c.warp)
 	out.Normf("\n")
 
 	conn, err := net.Dial("tcp", c.address)
@@ -212,8 +212,8 @@ func (c *Open) Execute(
 
 	// Send initial client update.
 	if err := c.updateW.Encode(wrp.ClientUpdate{
-		Session:  c.session,
-		From:     c.user,
+		Warp:     c.warp,
+		From:     c.session,
 		Hosting:  true,
 		Username: c.username,
 	}); err != nil {
@@ -248,8 +248,8 @@ func (c *Open) Execute(
 	}
 
 	if err := c.updateW.Encode(wrp.HostUpdate{
-		Session:    c.session,
-		From:       c.user,
+		Warp:       c.warp,
+		From:       c.session,
 		WindowSize: wrp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
@@ -297,8 +297,8 @@ func (c *Open) Execute(
 			}
 
 			if err := c.hostW.Encode(wrp.HostUpdate{
-				Session:    c.session,
-				From:       c.user,
+				Warp:       c.warp,
+				From:       c.session,
 				WindowSize: wrp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
 				out.Errof("[Error] Send host update error: %v\n", err)

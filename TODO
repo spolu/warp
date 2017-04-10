@@ -1,5 +1,7 @@
 #  v0.1
 
+  [ ] factor session creation / remove hostC
+  [ ] rename Client/Session
   [ ] rename wrp/warp Session/Warp
   [ ] errorC and meaningful errors to client
   [ ] PROMPT support for zsh, csh / linux

@@ -92,7 +92,7 @@ func (s *Srv) handle(
 	// Create a new context for this client with its own cancelation function.
 	ctx, cancel := context.WithCancel(ctx)
 
-	c := &Client{
+	ss := &Session{
 		conn:   conn,
 		mux:    mux,
 		ctx:    ctx,
@@ -100,40 +100,40 @@ func (s *Srv) handle(
 	}
 
 	// Opens state channel stateC.
-	c.stateC, err = mux.Accept()
+	ss.stateC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("State channel open error: %v", err),
 		)
 	}
-	c.stateW = gob.NewEncoder(c.stateC)
+	ss.stateW = gob.NewEncoder(ss.stateC)
 
 	// Open update channel updateC.
-	c.updateC, err = mux.Accept()
+	ss.updateC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Update channel open error: %v", err),
 		)
 	}
-	c.updateR = gob.NewDecoder(c.updateC)
+	ss.updateR = gob.NewDecoder(ss.updateC)
 
 	var initial wrp.ClientUpdate
-	if err := c.updateR.Decode(&initial); err != nil {
+	if err := ss.updateR.Decode(&initial); err != nil {
 		return errors.Trace(
 			errors.Newf("Initial client update error: %v", err),
 		)
 	}
-	c.session = initial.From
-	c.username = initial.Username
+	ss.session = initial.From
+	ss.username = initial.Username
 
 	logging.Logf(ctx,
 		"[%s] Initial client update received: "+
 			"warp=%s hosting=%t username=%s\n",
-		c.session.String(), initial.Warp, initial.Hosting, initial.Username,
+		ss.session.String(), initial.Warp, initial.Hosting, initial.Username,
 	)
 
 	// Open data channel dataC.
-	c.dataC, err = mux.Accept()
+	ss.dataC, err = mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Data channel open error: %v", err),
@@ -142,10 +142,10 @@ func (s *Srv) handle(
 
 	if initial.Hosting {
 		// Initialize the host as read/write.
-		err = s.handleHost(ctx, initial.Warp, c)
+		err = s.handleHost(ctx, initial.Warp, ss)
 	} else {
 		// Initialize clients as read only.
-		err = s.handleClient(ctx, initial.Warp, c)
+		err = s.handleClient(ctx, initial.Warp, ss)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -158,10 +158,10 @@ func (s *Srv) handle(
 func (s *Srv) handleHost(
 	ctx context.Context,
 	warp string,
-	c *Client,
+	ss *Session,
 ) error {
 	// Open host channel host.
-	hostC, err := c.mux.Accept()
+	hostC, err := ss.mux.Accept()
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Host channel open error: %v", err),
@@ -177,7 +177,7 @@ func (s *Srv) handleHost(
 	}
 	logging.Logf(ctx,
 		"[%s] Initial host update received: warp=%s\n",
-		c.session.String(), initial.Warp,
+		ss.session.String(), initial.Warp,
 	)
 
 	s.mutex.Lock()
@@ -195,16 +195,16 @@ func (s *Srv) handleHost(
 		windowSize: initial.WindowSize,
 		host: &HostState{
 			UserState: UserState{
-				token:    c.session.Token,
-				username: c.username,
+				token:    ss.session.User,
+				username: ss.username,
 				mode:     wrp.ModeRead | wrp.ModeWrite,
 				// Initialize host sessions as empty as the current client is
 				// the host session and does not act as "client". Subsequent
 				// client session coming from the host would be added to this
 				// list.
-				sessions: map[string]*Client{},
+				sessions: map[string]*Session{},
 			},
-			session: c,
+			session: ss,
 			hostC:   hostC,
 			hostR:   hostR,
 		},
@@ -215,7 +215,7 @@ func (s *Srv) handleHost(
 
 	s.mutex.Unlock()
 
-	err = s.warps[warp].handleHost(ctx, c)
+	err = s.warps[warp].handleHost(ctx, ss)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -223,7 +223,7 @@ func (s *Srv) handleHost(
 	// Clean-up warp.
 	logging.Logf(ctx,
 		"[%s] Cleaning-up warp: warp=%s",
-		c.session.String(), warp,
+		ss.session.String(), warp,
 	)
 	s.mutex.Lock()
 	delete(s.warps, warp)
@@ -237,7 +237,7 @@ func (s *Srv) handleHost(
 func (s *Srv) handleClient(
 	ctx context.Context,
 	warp string,
-	c *Client,
+	ss *Session,
 ) error {
 	s.mutex.Lock()
 	_, ok := s.warps[warp]
@@ -249,7 +249,7 @@ func (s *Srv) handleClient(
 		)
 	}
 
-	err := s.warps[warp].handleClient(ctx, c)
+	err := s.warps[warp].handleClient(ctx, ss)
 	if err != nil {
 		return errors.Trace(err)
 	}
