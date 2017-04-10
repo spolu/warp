@@ -1,8 +1,8 @@
-# todo
+#  v0.1
 
   [ ] rename wrp/warp Session/Warp
   [ ] errorC and meaningful errors to client
-  [ ] PROMPT support for zsh, csh
+  [ ] PROMPT support for zsh, csh / linux
   [ ] in-wrp commands
     [ ] local unix socket that is a command channel > updateC
     [ ] wrp ls
@@ -10,10 +10,9 @@
   [ ] TLS
   [ ] prevent write at host level
 
-# chat
+  # chat
 
-  [ ] wrp chat :id
-
-  wrp open stan-dev
-    wrp connect stan-dev
-    wrp voice stan-dev
+    [ ] chat dependent of warp being open
+    [ ] warp chat :id
+    [ ] minimal command system
+      [ ] /unmute /mute
