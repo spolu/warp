@@ -9,8 +9,8 @@ var DefaultAddress = "warp.link:4242"
 type Mode uint32
 
 const (
-	ModeRead  Mode = 1
-	ModeWrite Mode = 1 << 1
+	ModeShellRead  Mode = 1
+	ModeShellWrite Mode = 1 << 1
 )
 
 // Size reprensents a window size.
@@ -19,10 +19,14 @@ type Size struct {
 	Cols int
 }
 
-// Client represents a client connected to the wrp.
-type Client struct {
+// User represents a user of a warp.
+type User struct {
+	Token    string
 	Username string
-	Mode     Mode
+
+	Hosting bool
+
+	Mode Mode
 }
 
 // Session identifies a user's session.
@@ -39,32 +43,29 @@ func (u Session) String() string {
 	)
 }
 
-// State is the struct sent over the network to update the client state.
+// State is the struct sent over the network to update sessions state.
 type State struct {
-	Warp string
-
-	Host    Client
-	Clients map[string]Client
-
+	Warp       string
 	WindowSize Size
+	Users      map[string]User
 }
 
-// HostUpdate represents an update to the wrp general state from its host.
-type HostUpdate struct {
-	Warp string
-	From Session
-
-	WindowSize Size
-	Modes      map[string]Mode
-}
-
-// ClientUpdate represents an update to the wrp state for a particular client,
-// sent from the client or the host. A initial update is sent both when opening
-// or connecting to a session.
-type ClientUpdate struct {
+// SessionHello is the initial message sent over a session update channel to
+// identify itself to the server.
+type SessionHello struct {
 	Warp string
 	From Session
 
 	Hosting  bool
 	Username string
+}
+
+// HostUpdate represents an update to the warp state from its host.
+type HostUpdate struct {
+	Warp string
+	From Session
+
+	WindowSize Size
+	// Modes is a map from user token to mode.
+	Modes map[string]Mode
 }
