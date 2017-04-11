@@ -1,4 +1,4 @@
-package wrp
+package warp
 
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"

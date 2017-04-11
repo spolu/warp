@@ -12,11 +12,11 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/hashicorp/yamux"
-	"github.com/spolu/wrp"
-	"github.com/spolu/wrp/cli"
-	"github.com/spolu/wrp/lib/errors"
-	"github.com/spolu/wrp/lib/out"
-	"github.com/spolu/wrp/lib/token"
+	"github.com/spolu/warp"
+	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/out"
+	"github.com/spolu/warp/lib/token"
 )
 
 const (
@@ -32,7 +32,7 @@ func init() {
 type Connect struct {
 	address string
 	warp    string
-	session wrp.Session
+	session warp.Session
 
 	username string
 
@@ -58,9 +58,9 @@ func (c *Connect) Help(
 	ctx context.Context,
 ) {
 	out.Normf("\nUsage: ")
-	out.Boldf("wrp connect <id>\n")
+	out.Boldf("warp connect <id>\n")
 	out.Normf("\n")
-	out.Normf("  Connects to the shared terminal denoted by `id`. If possible wrp will\n")
+	out.Normf("  Connects to the shared terminal denoted by `id`. If possible warp will\n")
 	out.Normf("  attempt to resize the window it is running in to the size of the shared\n")
 	out.Normf("  terminal.\n")
 	out.Normf("\n")
@@ -70,7 +70,7 @@ func (c *Connect) Help(
 	out.Valuf("    ae7fd234abe2\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
-	out.Valuf("  wrp connect ae7fd234abe2\n")
+	out.Valuf("  warp connect ae7fd234abe2\n")
 	out.Normf("\n")
 }
 
@@ -87,7 +87,7 @@ func (c *Connect) Parse(
 		c.warp = args[0]
 	}
 
-	c.address = wrp.DefaultAddress
+	c.address = warp.DefaultAddress
 	if os.Getenv("WARPD_ADDRESS") != "" {
 		c.address = os.Getenv("WARPD_ADDRESS")
 	}
@@ -100,7 +100,7 @@ func (c *Connect) Parse(
 	}
 	c.username = user.Username
 
-	c.session = wrp.Session{
+	c.session = warp.Session{
 		Token:  token.New("session"),
 		User:   token.New("guest"),
 		Secret: token.RandStr(),
@@ -166,10 +166,10 @@ func (c *Connect) Execute(
 	c.updateW = gob.NewEncoder(c.updateC)
 
 	// Send initial SessionHello.
-	if err := c.updateW.Encode(wrp.SessionHello{
+	if err := c.updateW.Encode(warp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
-		Type:     wrp.SsTpShellClient,
+		Type:     warp.SsTpShellClient,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
@@ -190,7 +190,7 @@ func (c *Connect) Execute(
 	// Listen for state updates.
 	go func() {
 		for {
-			var st wrp.State
+			var st warp.State
 			if err := c.stateR.Decode(&st); err != nil {
 				out.Errof("[Error] State channel decode error: %v\n", err)
 				break

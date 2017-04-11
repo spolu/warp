@@ -7,17 +7,17 @@ import (
 	"net"
 
 	"github.com/hashicorp/yamux"
-	"github.com/spolu/wrp"
-	"github.com/spolu/wrp/lib/errors"
-	"github.com/spolu/wrp/lib/logging"
+	"github.com/spolu/warp"
+	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/logging"
 )
 
 // Session represents a client session connected to the warp.
 type Session struct {
-	session wrp.Session
+	session warp.Session
 
 	warp        string
-	sessionType wrp.SessionType
+	sessionType warp.SessionType
 
 	username string
 
@@ -77,7 +77,7 @@ func NewSession(
 	}
 	ss.updateR = gob.NewDecoder(ss.updateC)
 
-	var hello wrp.SessionHello
+	var hello warp.SessionHello
 	if err := ss.updateR.Decode(&hello); err != nil {
 		ss.TearDown()
 		return nil, errors.Trace(

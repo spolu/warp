@@ -17,11 +17,11 @@ import (
 
 	"github.com/hashicorp/yamux"
 	"github.com/kr/pty"
-	"github.com/spolu/wrp"
-	"github.com/spolu/wrp/cli"
-	"github.com/spolu/wrp/lib/errors"
-	"github.com/spolu/wrp/lib/out"
-	"github.com/spolu/wrp/lib/token"
+	"github.com/spolu/warp"
+	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/out"
+	"github.com/spolu/warp/lib/token"
 )
 
 const (
@@ -39,7 +39,7 @@ type Open struct {
 
 	address string
 	warp    string
-	session wrp.Session
+	session warp.Session
 
 	username string
 
@@ -68,7 +68,7 @@ func (c *Open) Help(
 	ctx context.Context,
 ) {
 	out.Normf("\nUsage: ")
-	out.Boldf("wrp open [<id>]\n")
+	out.Boldf("warp open [<id>]\n")
 	out.Normf("\n")
 	out.Normf("  Spawns a shared terminal with the provided id. Others can use the id to connect.\n")
 	out.Normf("  If no id is provided a random one is generated.\n")
@@ -79,8 +79,8 @@ func (c *Open) Help(
 	out.Valuf("    spolu-dev\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
-	out.Valuf("  wrp open\n")
-	out.Valuf("  wrp open spolu-dev\n")
+	out.Valuf("  warp open\n")
+	out.Valuf("  warp open spolu-dev\n")
 	out.Normf("\n")
 }
 
@@ -95,7 +95,7 @@ func (c *Open) Parse(
 		c.warp = args[0]
 	}
 
-	c.address = wrp.DefaultAddress
+	c.address = warp.DefaultAddress
 	if os.Getenv("WARPD_ADDRESS") != "" {
 		c.address = os.Getenv("WARPD_ADDRESS")
 	}
@@ -121,7 +121,7 @@ func (c *Open) Parse(
 	os.Setenv("PS1", prompt)
 	os.Setenv("PROMPT", prompt)
 
-	c.session = wrp.Session{
+	c.session = warp.Session{
 		Token:  token.New("session"),
 		User:   token.New("guest"),
 		Secret: token.RandStr(),
@@ -209,10 +209,10 @@ func (c *Open) Execute(
 	c.updateW = gob.NewEncoder(c.updateC)
 
 	// Send initial SessionHello.
-	if err := c.updateW.Encode(wrp.SessionHello{
+	if err := c.updateW.Encode(warp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
-		Type:     wrp.SsTpHost,
+		Type:     warp.SsTpHost,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
@@ -236,10 +236,10 @@ func (c *Open) Execute(
 		)
 	}
 
-	if err := c.updateW.Encode(wrp.HostUpdate{
+	if err := c.updateW.Encode(warp.HostUpdate{
 		Warp:       c.warp,
 		From:       c.session,
-		WindowSize: wrp.Size{Rows: rows, Cols: cols},
+		WindowSize: warp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
 			errors.Newf("Send host update error: %v", err),
@@ -251,7 +251,7 @@ func (c *Open) Execute(
 	// Listen for state updates.
 	go func() {
 		for {
-			var st wrp.State
+			var st warp.State
 			if err := c.stateR.Decode(&st); err != nil {
 				out.Errof("[Error] State channel decode error: %v\n", err)
 				break
@@ -285,10 +285,10 @@ func (c *Open) Execute(
 				break
 			}
 
-			if err := c.updateW.Encode(wrp.HostUpdate{
+			if err := c.updateW.Encode(warp.HostUpdate{
 				Warp:       c.warp,
 				From:       c.session,
-				WindowSize: wrp.Size{Rows: rows, Cols: cols},
+				WindowSize: warp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
 				out.Errof("[Error] Send host update error: %v\n", err)
 				break

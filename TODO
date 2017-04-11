@@ -10,7 +10,7 @@
   [ ] prevent write at host level
   [x] factor session creation / remove hostC
   [x] rename Client/Session
-  [x] rename wrp/warp Session/Warp
+  [x] rename warp/warp Session/Warp
 
   # chat
 

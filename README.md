@@ -1,18 +1,18 @@
-`wrp` lets you share your terminal directly from your machine.
+`warp` lets you share your terminal directly from your machine.
 
 You can start sharing your terminal with:
 
 ```
-wrp open
+warp open
 ```
 
-This will print the newly created wrp ID and spawn a new shared temrinal.
+This will print the newly created warp ID and spawn a new shared temrinal.
 
-From there anyone can connect to your newly spawned terminal using the wrp ID
+From there anyone can connect to your newly spawned terminal using the warp ID
 by running:
 
 ```
-wrp ae7fb6a24
+warp ae7fb6a24
 ```
 
 # Use-cases
@@ -23,17 +23,17 @@ wrp ae7fb6a24
 # Installation
 
 ```
-go get -u github.com/spolu/wrp
+go get -u github.com/spolu/warp
 ```
 
 # Notes
 
-Once connected, `wrp` will resize your terminal window to the hosting tty size
-(if possible). So, when connecting to a wrp, it's recommended to run `wrp` from
+Once connected, `warp` will resize your terminal window to the hosting tty size
+(if possible). So, when connecting to a warp, it's recommended to run `warp` from
 new terminal window.  
 
-Unfortunately, `wrp` does not support redrawing the whole tty for new
+Unfortunately, `warp` does not support redrawing the whole tty for new
 clients... yet /o\ 
 
-*If the wrp contains tmux session, changing the current tab will trigger
+*If the warp contains tmux session, changing the current tab will trigger
 a full redraw, resizing the hosting window will do the trick as well.*

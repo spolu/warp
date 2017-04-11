@@ -5,8 +5,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/spolu/wrp/daemon"
-	"github.com/spolu/wrp/lib/errors"
+	"github.com/spolu/warp/daemon"
+	"github.com/spolu/warp/lib/errors"
 )
 
 var lstFlag string

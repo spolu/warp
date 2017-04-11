@@ -3,8 +3,8 @@ package command
 import (
 	"context"
 
-	"github.com/spolu/wrp/cli"
-	"github.com/spolu/wrp/lib/out"
+	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/lib/out"
 )
 
 const (
@@ -36,7 +36,7 @@ func (c *Help) Help(
 	ctx context.Context,
 ) {
 	out.Normf("\nUsage: ")
-	out.Boldf("wrp <command> [<args> ...]\n")
+	out.Boldf("warp <command> [<args> ...]\n")
 	out.Normf("\n")
 	out.Normf("  Terminal sharing directly from localhost.\n")
 	out.Normf("\n")
@@ -44,12 +44,12 @@ func (c *Help) Help(
 
 	out.Boldf("  help <command>\n")
 	out.Normf("    Show help for a specific command.\n")
-	out.Valuf("    wrp help open\n")
+	out.Valuf("    warp help open\n")
 	out.Normf("\n")
 
 	out.Boldf("  open\n")
-	out.Normf("    Creates a new wrp.\n")
-	out.Valuf("    wrp open\n")
+	out.Normf("    Creates a new warp.\n")
+	out.Valuf("    warp open\n")
 	out.Normf("\n")
 }
 

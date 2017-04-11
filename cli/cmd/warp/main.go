@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 
-	"github.com/spolu/wrp/cli"
-	_ "github.com/spolu/wrp/cli/command"
-	"github.com/spolu/wrp/lib/out"
+	"github.com/spolu/warp/cli"
+	_ "github.com/spolu/warp/cli/command"
+	"github.com/spolu/warp/lib/out"
 )
 
 func main() {

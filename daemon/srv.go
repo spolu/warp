@@ -6,12 +6,12 @@ import (
 	"net"
 	"sync"
 
-	"github.com/spolu/wrp"
-	"github.com/spolu/wrp/lib/errors"
-	"github.com/spolu/wrp/lib/logging"
+	"github.com/spolu/warp"
+	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/logging"
 )
 
-// Srv represents a running wrpd server.
+// Srv represents a running warpd server.
 type Srv struct {
 	address string
 
@@ -89,9 +89,9 @@ func (s *Srv) handle(
 	defer ss.TearDown()
 
 	switch ss.sessionType {
-	case wrp.SsTpHost:
+	case warp.SsTpHost:
 		err = s.handleHost(ctx, ss)
-	case wrp.SsTpShellClient:
+	case warp.SsTpShellClient:
 		err = s.handleClient(ctx, ss)
 	}
 	if err != nil {
@@ -106,7 +106,7 @@ func (s *Srv) handleHost(
 	ctx context.Context,
 	ss *Session,
 ) error {
-	var initial wrp.HostUpdate
+	var initial warp.HostUpdate
 	if err := ss.updateR.Decode(&initial); err != nil {
 		return errors.Trace(
 			errors.Newf("Initial host update error: %v", err),
@@ -134,7 +134,7 @@ func (s *Srv) handleHost(
 			UserState: UserState{
 				token:    ss.session.User,
 				username: ss.username,
-				mode:     wrp.ModeShellRead | wrp.ModeShellWrite,
+				mode:     warp.ModeShellRead | warp.ModeShellWrite,
 				// Initialize host sessions as empty as the current client is
 				// the host session and does not act as "client". Subsequent
 				// client session coming from the host would be added to this

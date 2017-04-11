@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/spolu/wrp"
-	"github.com/spolu/wrp/lib/logging"
+	"github.com/spolu/warp"
+	"github.com/spolu/warp/lib/logging"
 )
 
 // UserState represents the state of a user along with a list of all his
@@ -14,15 +14,15 @@ import (
 type UserState struct {
 	token    string
 	username string
-	mode     wrp.Mode
+	mode     warp.Mode
 	sessions map[string]*Session
 }
 
-// User returns a wrp.User from the current UserState.
+// User returns a warp.User from the current UserState.
 func (u *UserState) User(
 	ctx context.Context,
-) wrp.User {
-	return wrp.User{
+) warp.User {
+	return warp.User{
 		Token:    u.token,
 		Username: u.username,
 		Mode:     u.mode,
@@ -37,11 +37,11 @@ type HostState struct {
 	session *Session
 }
 
-// User returns a wrp.User from the current HostState.
+// User returns a warp.User from the current HostState.
 func (h *HostState) User(
 	ctx context.Context,
-) wrp.User {
-	return wrp.User{
+) warp.User {
+	return warp.User{
 		Token:    h.UserState.token,
 		Username: h.UserState.username,
 		Mode:     h.UserState.mode,
@@ -53,7 +53,7 @@ func (h *HostState) User(
 type Warp struct {
 	token string
 
-	windowSize wrp.Size
+	windowSize warp.Size
 
 	host         *HostState
 	shellClients map[string]*UserState
@@ -63,17 +63,17 @@ type Warp struct {
 	mutex *sync.Mutex
 }
 
-// State computes a wrp.State from the current session. It acquires the session
+// State computes a warp.State from the current session. It acquires the session
 // lock.
 func (w *Warp) State(
 	ctx context.Context,
-) wrp.State {
+) warp.State {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
-	state := wrp.State{
+	state := warp.State{
 		Warp:       w.token,
 		WindowSize: w.windowSize,
-		Users:      map[string]wrp.User{},
+		Users:      map[string]warp.User{},
 	}
 
 	state.Users[w.host.session.session.User] = w.host.User(ctx)
@@ -141,12 +141,12 @@ func (w *Warp) rcvClientData(
 	ss *Session,
 	data []byte,
 ) {
-	var mode wrp.Mode
+	var mode warp.Mode
 	w.mutex.Lock()
 	mode = w.shellClients[ss.session.User].mode
 	w.mutex.Unlock()
 
-	if mode&wrp.ModeShellWrite != 0 {
+	if mode&warp.ModeShellWrite != 0 {
 		w.data <- data
 	}
 }
@@ -183,7 +183,7 @@ func (w *Warp) handleHost(
 	go func() {
 	HOSTLOOP:
 		for {
-			var st wrp.HostUpdate
+			var st warp.HostUpdate
 			if err := w.host.session.updateR.Decode(&st); err != nil {
 				ss.SendError(ctx,
 					"invalid_host_update",
@@ -344,7 +344,7 @@ func (w *Warp) handleClient(
 			w.shellClients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
-				mode:     wrp.ModeShellRead,
+				mode:     warp.ModeShellRead,
 				sessions: map[string]*Session{},
 			}
 		}
