@@ -137,7 +137,7 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	out.Normf("\n")
-	out.Normf("warp: ")
+	out.Normf("Opened warp: ")
 	out.Boldf("%s\n", c.warp)
 	out.Normf("\n")
 

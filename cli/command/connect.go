@@ -131,22 +131,6 @@ func (c *Connect) Execute(
 	// Closes stateC, updateC, dataC, mux and conn.
 	defer mux.Close()
 
-	// Setup local term.
-	stdin := int(os.Stdin.Fd())
-	if !terminal.IsTerminal(stdin) {
-		return errors.Trace(
-			errors.Newf("Not running in a terminal."),
-		)
-	}
-	old, err := terminal.MakeRaw(stdin)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Unable to make terminal raw: %v", err),
-		)
-	}
-	// Restors the terminal once we're done.
-	defer terminal.Restore(stdin, old)
-
 	// Opens state channel stateC.
 	c.stateC, err = mux.Open()
 	if err != nil {
@@ -184,6 +168,27 @@ func (c *Connect) Execute(
 			errors.Newf("Data channel open error: %v", err),
 		)
 	}
+
+	out.Normf("\n")
+	out.Normf("Connected to warp: ")
+	out.Boldf("%s\n", c.warp)
+	out.Normf("\n")
+
+	// Setup local term.
+	stdin := int(os.Stdin.Fd())
+	if !terminal.IsTerminal(stdin) {
+		return errors.Trace(
+			errors.Newf("Not running in a terminal."),
+		)
+	}
+	old, err := terminal.MakeRaw(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Unable to make terminal raw: %v", err),
+		)
+	}
+	// Restors the terminal once we're done.
+	defer terminal.Restore(stdin, old)
 
 	// Main loops.
 
