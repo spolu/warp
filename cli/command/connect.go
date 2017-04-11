@@ -41,6 +41,8 @@ type Connect struct {
 	stateR  *gob.Decoder
 	updateC net.Conn
 	updateW *gob.Encoder
+
+	state *cli.Warp
 }
 
 // NewConnect constructs and initializes the command.
@@ -150,12 +152,13 @@ func (c *Connect) Execute(
 	c.updateW = gob.NewEncoder(c.updateC)
 
 	// Send initial SessionHello.
-	if err := c.updateW.Encode(warp.SessionHello{
+	hello := warp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
 		Type:     warp.SsTpShellClient,
 		Username: c.username,
-	}); err != nil {
+	}
+	if err := c.updateW.Encode(hello); err != nil {
 		return errors.Trace(
 			errors.Newf("Send hello error: %v", err),
 		)
@@ -190,6 +193,9 @@ func (c *Connect) Execute(
 	// Restors the terminal once we're done.
 	defer terminal.Restore(stdin, old)
 
+	// Setup warp state.
+	c.state = cli.NewWarp(hello)
+
 	// Main loops.
 
 	// Listen for state updates.
@@ -200,6 +206,12 @@ func (c *Connect) Execute(
 				out.Errof("[Error] State channel decode error: %v\n", err)
 				break
 			}
+
+			if err := c.state.Update(st, false); err != nil {
+				out.Errof("[Error] State update error: %v\n", err)
+				break
+			}
+
 			// Update the terminal size.
 			fmt.Printf("\033[8;%d;%dt", st.WindowSize.Rows, st.WindowSize.Cols)
 

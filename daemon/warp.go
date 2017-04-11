@@ -299,6 +299,10 @@ func (w *Warp) handleHost(
 		ss.cancel()
 	}()
 
+	// Update host and clients (should be no client).
+	w.updateHost(ctx)
+	w.updateShellClients(ctx)
+
 	logging.Logf(ctx,
 		"Host session running: session=%s",
 		ss.ToString(),
@@ -381,15 +385,7 @@ func (w *Warp) handleClient(
 		ss.cancel()
 	}()
 
-	// Send initial state.
-	st := w.State(ctx)
-	logging.Logf(ctx,
-		"Sending initial state: session=%s cols=%d rows=%d",
-		ss.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
-	)
-	ss.stateW.Encode(st)
-
-	// Update host and clients.
+	// Update host and clients (including the new session).
 	w.updateHost(ctx)
 	w.updateShellClients(ctx)
 

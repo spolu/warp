@@ -51,6 +51,8 @@ type Open struct {
 	stateR  *gob.Decoder
 	updateC net.Conn
 	updateW *gob.Encoder
+
+	state *cli.Warp
 }
 
 // NewOpen constructs and initializes the command.
@@ -174,22 +176,6 @@ func (c *Open) Execute(
 	// Closes the newly created pty.
 	defer c.pty.Close()
 
-	// Setup local term.
-	stdin := int(os.Stdin.Fd())
-	if !terminal.IsTerminal(stdin) {
-		return errors.Trace(
-			errors.Newf("Not running in a terminal."),
-		)
-	}
-	old, err := terminal.MakeRaw(stdin)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Unable to make terminal raw: %v", err),
-		)
-	}
-	// Restores the terminal once we're done.
-	defer terminal.Restore(stdin, old)
-
 	// Opens state channel stateC.
 	c.stateC, err = mux.Open()
 	if err != nil {
@@ -209,12 +195,13 @@ func (c *Open) Execute(
 	c.updateW = gob.NewEncoder(c.updateC)
 
 	// Send initial SessionHello.
-	if err := c.updateW.Encode(warp.SessionHello{
+	hello := warp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
 		Type:     warp.SsTpHost,
 		Username: c.username,
-	}); err != nil {
+	}
+	if err := c.updateW.Encode(hello); err != nil {
 		return errors.Trace(
 			errors.Newf("Send hello error: %v", err),
 		)
@@ -227,6 +214,22 @@ func (c *Open) Execute(
 			errors.Newf("Data channel open error: %v", err),
 		)
 	}
+
+	// Setup local term.
+	stdin := int(os.Stdin.Fd())
+	if !terminal.IsTerminal(stdin) {
+		return errors.Trace(
+			errors.Newf("Not running in a terminal."),
+		)
+	}
+	old, err := terminal.MakeRaw(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Unable to make terminal raw: %v", err),
+		)
+	}
+	// Restores the terminal once we're done.
+	defer terminal.Restore(stdin, old)
 
 	// Send initial host update.
 	cols, rows, err := terminal.GetSize(stdin)
@@ -246,6 +249,9 @@ func (c *Open) Execute(
 		)
 	}
 
+	// Setup warp state.
+	c.state = cli.NewWarp(hello)
+
 	// Main loops.
 
 	// Listen for state updates.
@@ -254,6 +260,11 @@ func (c *Open) Execute(
 			var st warp.State
 			if err := c.stateR.Decode(&st); err != nil {
 				out.Errof("[Error] State channel decode error: %v\n", err)
+				break
+			}
+
+			if err := c.state.Update(st, true); err != nil {
+				out.Errof("[Error] State update error: %v\n", err)
 				break
 			}
 
