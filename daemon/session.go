@@ -5,412 +5,131 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
-	"sync"
 
+	"github.com/hashicorp/yamux"
 	"github.com/spolu/wrp"
+	"github.com/spolu/wrp/lib/errors"
 	"github.com/spolu/wrp/lib/logging"
 )
 
-// UserState represents the state of a user along with a list of all his
-// sessions.
-type UserState struct {
-	token    string
-	username string
-	mode     wrp.Mode
-	sessions map[string]*Client
-}
-
-// HostState represents the state of the host, in particular the host session,
-// along with its UserState.
-type HostState struct {
-	UserState
-	session *Client
-	hostC   net.Conn
-	hostR   *gob.Decoder
-}
-
-// Client returns a wrp.Client from the current UserState.
-func (u *UserState) Client(
-	ctx context.Context,
-) wrp.Client {
-	return wrp.Client{
-		Username: u.username,
-		Mode:     u.mode,
-	}
-}
-
-// Session represents a pty served from a remote host attached to a token.
+// Session represents a client session connected to the warp.
 type Session struct {
-	token string
+	session wrp.Session
 
-	windowSize wrp.Size
+	warp        string
+	sessionType wrp.SessionType
 
-	host    *HostState
-	clients map[string]*UserState
+	username string
 
-	data chan []byte
+	conn net.Conn
+	mux  *yamux.Session
 
-	mutex *sync.Mutex
+	stateC net.Conn
+	stateW *gob.Encoder
+
+	updateC net.Conn
+	updateR *gob.Decoder
+
+	dataC net.Conn
+
+	ctx    context.Context
+	cancel func()
 }
 
-// State computes a wrp.State from the current session. It acquires the session
-// lock.
-func (s *Session) State(
+// NewSession sets up a session, opens the associated channels and return a
+// Session object.
+func NewSession(
 	ctx context.Context,
-) wrp.State {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	state := wrp.State{
-		Session:    s.token,
-		WindowSize: s.windowSize,
-		Host:       s.host.UserState.Client(ctx),
-		Clients:    map[string]wrp.Client{},
-	}
-	for token, user := range s.clients {
-		state.Clients[token] = user.Client(ctx)
-	}
-
-	return state
-}
-
-// Clients return all connected clients that are not the host client.
-func (s *Session) Clients(
-	ctx context.Context,
-) []*Client {
-	clients := []*Client{}
-	s.mutex.Lock()
-	for _, user := range s.clients {
-		for _, c := range user.sessions {
-			clients = append(clients, c)
-		}
-	}
-	for _, c := range s.host.UserState.sessions {
-		clients = append(clients, c)
-	}
-	s.mutex.Unlock()
-	return clients
-}
-
-// updateClients updates all clients with the current state.
-func (s *Session) updateClients(
-	ctx context.Context,
-) {
-	st := s.State(ctx)
-	clients := s.Clients(ctx)
-	for _, c := range clients {
-		logging.Logf(ctx,
-			"[%s] Sending (client) state: session=%s cols=%d rows=%d",
-			c.user.String(),
-			st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+	cancel func(),
+	conn net.Conn,
+) (*Session, error) {
+	mux, err := yamux.Server(conn, nil)
+	if err != nil {
+		return nil, errors.Trace(
+			errors.Newf("Mux error: %v", err),
 		)
-
-		c.stateW.Encode(st)
 	}
-}
 
-// updateHost updates all clients with the current state.
-func (s *Session) updateHost(
-	ctx context.Context,
-) {
-	st := s.State(ctx)
-
-	logging.Logf(ctx,
-		"[%s] Sending (host) state: session=%s cols=%d rows=%d",
-		s.host.session.user.String(),
-		st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
-	)
-
-	s.host.session.stateW.Encode(st)
-}
-
-// rcvClientData handles incoming client data and commits it to the data
-// channel if the client is authorized to do so.
-func (s *Session) rcvClientData(
-	ctx context.Context,
-	c *Client,
-	data []byte,
-) {
-	var mode wrp.Mode
-	s.mutex.Lock()
-	mode = s.clients[c.user.Token].mode
-	s.mutex.Unlock()
-
-	if mode&wrp.ModeWrite != 0 {
-		s.data <- data
+	ss := &Session{
+		conn:   conn,
+		mux:    mux,
+		ctx:    ctx,
+		cancel: cancel,
 	}
-}
 
-func (s *Session) rcvHostData(
-	ctx context.Context,
-	client *Client,
-	data []byte,
-) {
-	clients := s.Clients(ctx)
-	for _, cc := range clients {
-		logging.Logf(ctx,
-			"[%s] Sending data to client: session=%s size=%d",
-			cc.user.String(), s.token, len(data),
+	// Opens state channel stateC.
+	ss.stateC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("State channel open error: %v", err),
 		)
-		_, err := cc.dataC.Write(data)
-		if err != nil {
-			cc.SendError(ctx,
-				"data_send_failed",
-				fmt.Sprintf("Error sending data: %v", err),
-			)
-			// This will disconnect the client and clean it up from the
-			// session
-			cc.cancel()
-		}
 	}
+	ss.stateW = gob.NewEncoder(ss.stateC)
+
+	// Open update channel updateC.
+	ss.updateC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Update channel open error: %v", err),
+		)
+	}
+	ss.updateR = gob.NewDecoder(ss.updateC)
+
+	var hello wrp.SessionHello
+	if err := ss.updateR.Decode(&hello); err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Initial client update error: %v", err),
+		)
+	}
+	ss.session = hello.From
+	ss.warp = hello.Warp
+	ss.sessionType = hello.Type
+	ss.username = hello.Username
+
+	logging.Logf(ctx,
+		"Session hello received: session=%s type=%s username=%s",
+		ss.ToString(), hello.Warp, hello.Type, hello.Username,
+	)
+
+	// Open data channel dataC.
+	ss.dataC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Data channel open error: %v", err),
+		)
+	}
+
+	return ss, nil
 }
 
-func (s *Session) handleHost(
-	ctx context.Context,
-	c *Client,
-) error {
-	// run state updates
-	go func() {
-	HOSTLOOP:
-		for {
-			var st wrp.HostUpdate
-			if err := s.host.hostR.Decode(&st); err != nil {
-				c.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf("Host update decoding failed: %v", err),
-				)
-				break HOSTLOOP
-			}
-
-			if st.Session != s.token {
-				c.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf(
-						"Host update session mismatch: %s", st.Session,
-					),
-				)
-				break HOSTLOOP
-			}
-			if st.From.String() != c.user.String() {
-				c.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf(
-						"Host update host mismatch: %s", st.From.String(),
-					),
-				)
-				break HOSTLOOP
-			}
-
-			for token, _ := range st.Modes {
-				_, ok := s.clients[token]
-				if !ok {
-					c.SendError(ctx,
-						"invalid_host_update",
-						fmt.Sprintf(
-							"Host update unknown client: %s", token,
-						),
-					)
-					break HOSTLOOP
-				}
-			}
-
-			s.mutex.Lock()
-			s.windowSize = st.WindowSize
-			for token, mode := range st.Modes {
-				s.clients[token].mode = mode
-			}
-			s.mutex.Unlock()
-
-			logging.Logf(ctx,
-				"[%s] Received host update: session=%s cols=%d rows=%d",
-				c.user.String(),
-				s.token, st.WindowSize.Rows, st.WindowSize.Cols,
-			)
-
-			s.updateClients(ctx)
-		}
-		c.cancel()
-	}()
-
-	// Receive host data.
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			nr, err := c.dataC.Read(buf)
-			if nr > 0 {
-				cpy := make([]byte, nr)
-				copy(cpy, buf)
-
-				logging.Logf(ctx,
-					"[%s] Received data from host: session=%s size=%d",
-					c.user.String(), s.token, nr,
-				)
-				s.rcvHostData(ctx, c, cpy)
-			}
-			if err != nil {
-				c.SendError(ctx,
-					"data_receive_failed",
-					fmt.Sprintf("Error receiving data: %v", err),
-				)
-				break
-			}
-			select {
-			case <-c.ctx.Done():
-				break
-			default:
-			}
-		}
-		c.cancel()
-	}()
-
-	// Send data to host.
-	go func() {
-		for {
-			select {
-			case buf := <-s.data:
-
-				logging.Logf(ctx,
-					"[%s] Sending to host: session=%s size=%d",
-					c.user.String(), s.token, len(buf),
-				)
-
-				_, err := c.dataC.Write(buf)
-				if err != nil {
-					c.SendError(ctx,
-						"data_send_failed",
-						fmt.Sprintf("Error sending data: %v", err),
-					)
-					break
-				}
-			case <-c.ctx.Done():
-				break
-			default:
-			}
-		}
-		c.cancel()
-	}()
-
-	logging.Logf(ctx,
-		"[%s] Host running: session=%s",
-		c.user.String(), s.token,
+// ToStering returns a string that identifies the session for logging.
+func (ss *Session) ToString() string {
+	return fmt.Sprintf(
+		"%s/%s:%s", ss.warp, ss.session.User, ss.session.Token,
 	)
-
-	<-c.ctx.Done()
-
-	// Cancel all clients.
-	logging.Logf(ctx,
-		"[%s] Cancelling all clients: session=%s",
-		c.user.String(), s.token,
-	)
-	clients := s.Clients(ctx)
-	for _, cc := range clients {
-		cc.cancel()
-	}
-
-	return nil
 }
 
-func (s *Session) handleClient(
+// TearDown tears down a session, closing and reclaiming channels.
+func (ss *Session) TearDown() {
+	// Closes stateC, updateC, dataC, mux and conn.
+	ss.mux.Close()
+	ss.cancel()
+}
+
+// SendError sends an error to the client which should trigger a disconnection
+// on its end.
+func (ss *Session) SendError(
 	ctx context.Context,
-	c *Client,
-) error {
-	// Add the client.
-	s.mutex.Lock()
-	isHostSession := false
-	if c.user.Token == s.host.UserState.token {
-		isHostSession = true
-		// If we have a session conflict, let's kill the old one.
-		if c, ok := s.host.UserState.sessions[c.user.Session]; ok {
-			c.cancel()
-			delete(s.host.UserState.sessions, c.user.Session)
-		}
-		s.host.UserState.sessions[c.user.Session] = c
-	} else {
-		if _, ok := s.clients[c.user.Token]; !ok {
-			s.clients[c.user.Token] = &UserState{
-				token:    c.user.Token,
-				username: c.username,
-				mode:     wrp.ModeRead,
-				sessions: map[string]*Client{},
-			}
-		}
-		// If we have a session conflict, let's kill the old one.
-		if c, ok := s.clients[c.user.Token].sessions[c.user.Session]; ok {
-			c.cancel()
-			delete(s.clients[c.user.Token].sessions, c.user.Session)
-		}
-		s.clients[c.user.Token].sessions[c.user.Session] = c
-	}
-	s.mutex.Unlock()
-
-	// Receive client data.
-	go func() {
-		buf := make([]byte, 1024)
-		for {
-			nr, err := c.dataC.Read(buf)
-			if nr > 0 {
-				cpy := make([]byte, nr)
-				copy(cpy, buf)
-
-				fmt.Printf(
-					"[%s] Received data from client: session=%s size=%d\n",
-					c.user.String(), s.token, nr,
-				)
-				s.rcvClientData(ctx, c, cpy)
-			}
-			if err != nil {
-				c.SendError(ctx,
-					"data_receive_failed",
-					fmt.Sprintf("Error receiving data: %v", err),
-				)
-				break
-			}
-			select {
-			case <-c.ctx.Done():
-				break
-			default:
-			}
-		}
-		c.cancel()
-	}()
-
-	// Send initial state.
-	st := s.State(ctx)
+	code string,
+	message string,
+) {
+	// TODO actually send error
 	logging.Logf(ctx,
-		"[%s] Sending initial state: session=%s cols=%d rows=%d",
-		c.user.String(), st.Session, st.WindowSize.Rows, st.WindowSize.Cols,
+		"Session error: session=%s code=%s message=%s",
+		ss.ToString(), code, message,
 	)
-	c.stateW.Encode(st)
-
-	// Update host and clients.
-	s.updateHost(ctx)
-	s.updateClients(ctx)
-
-	logging.Logf(ctx,
-		"[%s] Client running: session=%s",
-		c.user.String(), s.token,
-	)
-
-	<-c.ctx.Done()
-
-	// Clean-up client.
-	logging.Logf(ctx,
-		"[%s] Cleaning-up client: session=%s",
-		c.user.String(), s.token,
-	)
-	s.mutex.Lock()
-	if isHostSession {
-		delete(s.host.sessions, c.user.Session)
-	} else {
-		delete(s.clients[c.user.Token].sessions, c.user.Session)
-		if len(s.clients[c.user.Token].sessions) == 0 {
-			delete(s.clients, c.user.Token)
-		}
-	}
-	s.mutex.Unlock()
-
-	// Update remaining clients
-	s.updateClients(ctx)
-	s.updateHost(ctx)
-
-	return nil
 }

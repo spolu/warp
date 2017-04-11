@@ -2,12 +2,10 @@ package daemon
 
 import (
 	"context"
-	"encoding/gob"
 	"log"
 	"net"
 	"sync"
 
-	"github.com/hashicorp/yamux"
 	"github.com/spolu/wrp"
 	"github.com/spolu/wrp/lib/errors"
 	"github.com/spolu/wrp/lib/logging"
@@ -17,8 +15,8 @@ import (
 type Srv struct {
 	address string
 
-	sessions map[string]*Session
-	mutex    *sync.Mutex
+	warps map[string]*Warp
+	mutex *sync.Mutex
 }
 
 // NewSrv constructs a Srv ready to start serving requests.
@@ -27,9 +25,9 @@ func NewSrv(
 	address string,
 ) *Srv {
 	return &Srv{
-		address:  address,
-		sessions: map[string]*Session{},
-		mutex:    &sync.Mutex{},
+		address: address,
+		warps:   map[string]*Warp{},
+		mutex:   &sync.Mutex{},
 	}
 }
 
@@ -80,72 +78,21 @@ func (s *Srv) handle(
 		conn.RemoteAddr().String(),
 	)
 
-	mux, err := yamux.Server(conn, nil)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Session error: %v", err),
-		)
-	}
-	// Closes stateC, updateC, dataC, [hostC,] mux and conn.
-	defer mux.Close()
-
 	// Create a new context for this client with its own cancelation function.
 	ctx, cancel := context.WithCancel(ctx)
 
-	c := &Client{
-		conn:   conn,
-		mux:    mux,
-		ctx:    ctx,
-		cancel: cancel,
-	}
-
-	// Opens state channel stateC.
-	c.stateC, err = mux.Accept()
+	ss, err := NewSession(ctx, cancel, conn)
 	if err != nil {
-		return errors.Trace(
-			errors.Newf("State channel open error: %v", err),
-		)
+		return errors.Trace(err)
 	}
-	c.stateW = gob.NewEncoder(c.stateC)
+	// Close and reclaims all session related state.
+	defer ss.TearDown()
 
-	// Open update channel updateC.
-	c.updateC, err = mux.Accept()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Update channel open error: %v", err),
-		)
-	}
-	c.updateR = gob.NewDecoder(c.updateC)
-
-	var initial wrp.ClientUpdate
-	if err := c.updateR.Decode(&initial); err != nil {
-		return errors.Trace(
-			errors.Newf("Initial client update error: %v", err),
-		)
-	}
-	c.user = initial.From
-	c.username = initial.Username
-
-	logging.Logf(ctx,
-		"[%s] Initial client update received: "+
-			"session=%s hosting=%t username=%s\n",
-		c.user.String(), initial.Session, initial.Hosting, initial.Username,
-	)
-
-	// Open data channel dataC.
-	c.dataC, err = mux.Accept()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Data channel open error: %v", err),
-		)
-	}
-
-	if initial.Hosting {
-		// Initialize the host as read/write.
-		err = s.handleHost(ctx, initial.Session, c)
-	} else {
-		// Initialize clients as read only.
-		err = s.handleClient(ctx, initial.Session, c)
+	switch ss.sessionType {
+	case wrp.SsTpHost:
+		err = s.handleHost(ctx, ss)
+	case wrp.SsTpShellClient:
+		err = s.handleClient(ctx, ss)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -153,103 +100,90 @@ func (s *Srv) handle(
 	return nil
 }
 
-// handleHost handles an host connecting, creating the session if it does not
+// handleHost handles an host connecting, creating the warp if it does not
 // exists or erroring accordingly.
 func (s *Srv) handleHost(
 	ctx context.Context,
-	session string,
-	c *Client,
+	ss *Session,
 ) error {
-	// Open host channel host.
-	hostC, err := c.mux.Accept()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Host channel open error: %v", err),
-		)
-	}
-	hostR := gob.NewDecoder(hostC)
-
 	var initial wrp.HostUpdate
-	if err := hostR.Decode(&initial); err != nil {
+	if err := ss.updateR.Decode(&initial); err != nil {
 		return errors.Trace(
 			errors.Newf("Initial host update error: %v", err),
 		)
 	}
 	logging.Logf(ctx,
-		"[%s] Initial host update received: session=%s\n",
-		c.user.String(), initial.Session,
+		"Initial host update received: session=%s\n",
+		ss.ToString(),
 	)
 
 	s.mutex.Lock()
-	_, ok := s.sessions[session]
+	_, ok := s.warps[ss.warp]
 
 	if ok {
 		s.mutex.Unlock()
 		return errors.Trace(
-			errors.Newf("Host error: session already in use: %s", session),
+			errors.Newf("Host error: warp already in use: %s", ss.warp),
 		)
 	}
 
-	s.sessions[session] = &Session{
-		token:      session,
+	s.warps[ss.warp] = &Warp{
+		token:      ss.warp,
 		windowSize: initial.WindowSize,
 		host: &HostState{
 			UserState: UserState{
-				token:    c.user.Token,
-				username: c.username,
-				mode:     wrp.ModeRead | wrp.ModeWrite,
-				// Initialize host sessions as empty as the current client is the
-				// host session and does not act as "client". Subsequent client
-				// session coming from the host would be added to the host object
-				// sessions.
-				sessions: map[string]*Client{},
+				token:    ss.session.User,
+				username: ss.username,
+				mode:     wrp.ModeShellRead | wrp.ModeShellWrite,
+				// Initialize host sessions as empty as the current client is
+				// the host session and does not act as "client". Subsequent
+				// client session coming from the host would be added to this
+				// list.
+				sessions: map[string]*Session{},
 			},
-			session: c,
-			hostC:   hostC,
-			hostR:   hostR,
+			session: ss,
 		},
-		clients: map[string]*UserState{},
-		data:    make(chan []byte),
-		mutex:   &sync.Mutex{},
+		shellClients: map[string]*UserState{},
+		data:         make(chan []byte),
+		mutex:        &sync.Mutex{},
 	}
 
 	s.mutex.Unlock()
 
-	err = s.sessions[session].handleHost(ctx, c)
+	err := s.warps[ss.warp].handleHost(ctx, ss)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	// Clean-up session.
+	// Clean-up warp.
 	logging.Logf(ctx,
-		"[%s] Cleaning-up session: session=%s",
-		c.user.String(), session,
+		"Cleaning-up warp: session=%s",
+		ss.ToString(),
 	)
 	s.mutex.Lock()
-	delete(s.sessions, session)
+	delete(s.warps, ss.warp)
 	s.mutex.Unlock()
 
 	return nil
 }
 
-// handleClient handles a client connecting, retrieving the required session or
+// handleClient handles a client connecting, retrieving the required warp or
 // erroring accordingly.
 func (s *Srv) handleClient(
 	ctx context.Context,
-	session string,
-	c *Client,
+	ss *Session,
 ) error {
 	s.mutex.Lock()
-	_, ok := s.sessions[session]
+	_, ok := s.warps[ss.warp]
 	s.mutex.Unlock()
 
 	if !ok {
 		return errors.Trace(
-			errors.Newf("Client error: unknown session %s", session),
+			errors.Newf("Client error: unknown warp %s", ss.warp),
 		)
 	}
 
-	err := s.sessions[session].handleClient(ctx, c)
+	err := s.warps[ss.warp].handleClient(ctx, ss)
 	if err != nil {
 		return errors.Trace(err)
 	}

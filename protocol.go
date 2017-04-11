@@ -1,16 +1,27 @@
 package wrp
 
-import "fmt"
-
 // DefaultAddress to connect to
-var DefaultAddress = "wrp.host:4242"
+var DefaultAddress = "warp.link:4242"
 
 // Mode is used to represent the mode of a client (read/write).
 type Mode uint32
 
 const (
-	ModeRead  Mode = 1
-	ModeWrite Mode = 1 << 1
+	ModeShellRead  Mode = 1
+	ModeShellWrite Mode = 1 << 1
+	// Future usecases: ModeSpeakRead|ModeSpeakWrite|ModeSpeakMuted
+)
+
+// SessionType encodes the type of the session:
+type SessionType string
+
+const (
+	// SsTpHost the host session that created the warp (`warp open`)
+	SsTpHost SessionType = "host"
+	// SsTpShellClient shell client session (`warp connect`)
+	SsTpShellClient SessionType = "shell"
+	// SsTpChatClient chat client session (`warp chat`)
+	SsTpChatClient SessionType = "chat"
 )
 
 // Size reprensents a window size.
@@ -19,52 +30,45 @@ type Size struct {
 	Cols int
 }
 
-// Client represents a client connected to the wrp.
-type Client struct {
-	Username string
-	Mode     Mode
-}
-
-// User identifies a user.
+// User represents a user of a warp.
 type User struct {
-	Token   string
-	Secret  string
-	Session string
-}
-
-func (u User) String() string {
-	return fmt.Sprintf(
-		"%s:%s",
-		u.Token, u.Session,
-	)
-}
-
-// State is the struct sent over the network to update the client state.
-type State struct {
-	Session string
-
-	Host    Client
-	Clients map[string]Client
-
-	WindowSize Size
-}
-
-// HostUpdate represents an update to the wrp general state from its host.
-type HostUpdate struct {
-	Session string
-	From    User
-
-	WindowSize Size
-	Modes      map[string]Mode
-}
-
-// ClientUpdate represents an update to the wrp state for a particular client,
-// sent from the client or the host. A initial update is sent both when opening
-// or connecting to a session.
-type ClientUpdate struct {
-	Session string
-	From    User
-
-	Hosting  bool
+	Token    string
 	Username string
+
+	Mode    Mode
+	Hosting bool
+}
+
+// Session identifies a user's session.
+type Session struct {
+	Token  string
+	User   string
+	Secret string
+}
+
+// State is the struct sent over the network to update sessions state.
+type State struct {
+	Warp       string
+	WindowSize Size
+	Users      map[string]User
+}
+
+// SessionHello is the initial message sent over a session update channel to
+// identify itself to the server.
+type SessionHello struct {
+	Warp string
+	From Session
+
+	Type     SessionType
+	Username string
+}
+
+// HostUpdate represents an update to the warp state from its host.
+type HostUpdate struct {
+	Warp string
+	From Session
+
+	WindowSize Size
+	// Modes is a map from user token to mode.
+	Modes map[string]Mode
 }

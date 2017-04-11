@@ -31,8 +31,8 @@ func init() {
 // Connect spawns a new shared terminal.
 type Connect struct {
 	address string
-	session string
-	user    wrp.User
+	warp    string
+	session wrp.Session
 
 	username string
 
@@ -81,15 +81,15 @@ func (c *Connect) Parse(
 ) error {
 	if len(args) == 0 {
 		return errors.Trace(
-			errors.Newf("Wrp id required."),
+			errors.Newf("Warp id required."),
 		)
 	} else {
-		c.session = args[0]
+		c.warp = args[0]
 	}
 
 	c.address = wrp.DefaultAddress
-	if os.Getenv("WRPD_ADDRESS") != "" {
-		c.address = os.Getenv("WRPD_ADDRESS")
+	if os.Getenv("WARPD_ADDRESS") != "" {
+		c.address = os.Getenv("WARPD_ADDRESS")
 	}
 
 	user, err := user.Current()
@@ -100,10 +100,10 @@ func (c *Connect) Parse(
 	}
 	c.username = user.Username
 
-	c.user = wrp.User{
-		Token:   token.New("guest"),
-		Secret:  "",
-		Session: token.New("session"),
+	c.session = wrp.Session{
+		Token:  token.New("session"),
+		User:   token.New("guest"),
+		Secret: token.RandStr(),
 	}
 
 	return nil
@@ -165,15 +165,15 @@ func (c *Connect) Execute(
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
 
-	// Send initial client update.
-	if err := c.updateW.Encode(wrp.ClientUpdate{
-		Session:  c.session,
-		From:     c.user,
-		Hosting:  false,
+	// Send initial SessionHello.
+	if err := c.updateW.Encode(wrp.SessionHello{
+		Warp:     c.warp,
+		From:     c.session,
+		Type:     wrp.SsTpShellClient,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
-			errors.Newf("Send client update error: %v", err),
+			errors.Newf("Send hello error: %v", err),
 		)
 	}
 

@@ -1,14 +1,16 @@
 #  v0.1
 
-  [ ] rename wrp/warp Session/Warp
   [ ] errorC and meaningful errors to client
   [ ] PROMPT support for zsh, csh / linux
-  [ ] in-wrp commands
+  [ ] in-warp commands
     [ ] local unix socket that is a command channel > updateC
-    [ ] wrp ls
-    [ ] wrp authorize stan
+    [ ] warp ls
+    [ ] warp authorize stan
   [ ] TLS
   [ ] prevent write at host level
+  [x] factor session creation / remove hostC
+  [x] rename Client/Session
+  [x] rename wrp/warp Session/Warp
 
   # chat
 

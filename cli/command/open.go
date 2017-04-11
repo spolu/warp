@@ -38,8 +38,8 @@ type Open struct {
 	shell string
 
 	address string
-	session string
-	user    wrp.User
+	warp    string
+	session wrp.Session
 
 	username string
 
@@ -51,8 +51,6 @@ type Open struct {
 	stateR  *gob.Decoder
 	updateC net.Conn
 	updateW *gob.Encoder
-	hostC   net.Conn
-	hostW   *gob.Encoder
 }
 
 // NewOpen constructs and initializes the command.
@@ -92,14 +90,14 @@ func (c *Open) Parse(
 	args []string,
 ) error {
 	if len(args) == 0 {
-		c.session = token.RandStr()
+		c.warp = token.RandStr()
 	} else {
-		c.session = args[0]
+		c.warp = args[0]
 	}
 
 	c.address = wrp.DefaultAddress
-	if os.Getenv("WRPD_ADDRESS") != "" {
-		c.address = os.Getenv("WRPD_ADDRESS")
+	if os.Getenv("WARPD_ADDRESS") != "" {
+		c.address = os.Getenv("WARPD_ADDRESS")
 	}
 
 	c.shell = "/bin/bash"
@@ -117,16 +115,16 @@ func (c *Open) Parse(
 
 	// Sets the BASH prompt
 	prompt := fmt.Sprintf(
-		"\\[\033[01;31m\\][wrp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
-		c.session,
+		"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+		c.warp,
 	)
 	os.Setenv("PS1", prompt)
 	os.Setenv("PROMPT", prompt)
 
-	c.user = wrp.User{
-		Token:   token.New("guest"),
-		Secret:  "",
-		Session: token.New("session"),
+	c.session = wrp.Session{
+		Token:  token.New("session"),
+		User:   token.New("guest"),
+		Secret: token.RandStr(),
 	}
 
 	return nil
@@ -139,8 +137,8 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	out.Normf("\n")
-	out.Normf("wrp id: ")
-	out.Boldf("%s\n", c.session)
+	out.Normf("warp: ")
+	out.Boldf("%s\n", c.warp)
 	out.Normf("\n")
 
 	conn, err := net.Dial("tcp", c.address)
@@ -156,7 +154,7 @@ func (c *Open) Execute(
 			errors.Newf("Session error: %v", err),
 		)
 	}
-	// Closes stateC, updateC, hostC, dataC, mux and conn.
+	// Closes stateC, updateC, dataC, mux and conn.
 	defer mux.Close()
 
 	// Setup pty
@@ -210,15 +208,15 @@ func (c *Open) Execute(
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
 
-	// Send initial client update.
-	if err := c.updateW.Encode(wrp.ClientUpdate{
-		Session:  c.session,
-		From:     c.user,
-		Hosting:  true,
+	// Send initial SessionHello.
+	if err := c.updateW.Encode(wrp.SessionHello{
+		Warp:     c.warp,
+		From:     c.session,
+		Type:     wrp.SsTpHost,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
-			errors.Newf("Send client update error: %v", err),
+			errors.Newf("Send hello error: %v", err),
 		)
 	}
 
@@ -230,15 +228,6 @@ func (c *Open) Execute(
 		)
 	}
 
-	// Open host channel hostC.
-	c.hostC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Host channel open error: %v", err),
-		)
-	}
-	c.hostW = gob.NewEncoder(c.hostC)
-
 	// Send initial host update.
 	cols, rows, err := terminal.GetSize(stdin)
 	if err != nil {
@@ -248,8 +237,8 @@ func (c *Open) Execute(
 	}
 
 	if err := c.updateW.Encode(wrp.HostUpdate{
-		Session:    c.session,
-		From:       c.user,
+		Warp:       c.warp,
+		From:       c.session,
 		WindowSize: wrp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
@@ -277,7 +266,7 @@ func (c *Open) Execute(
 		cancel()
 	}()
 
-	// Forward window resizes to pty and hostC
+	// Forward window resizes to pty and updateC
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
@@ -296,9 +285,9 @@ func (c *Open) Execute(
 				break
 			}
 
-			if err := c.hostW.Encode(wrp.HostUpdate{
-				Session:    c.session,
-				From:       c.user,
+			if err := c.updateW.Encode(wrp.HostUpdate{
+				Warp:       c.warp,
+				From:       c.session,
 				WindowSize: wrp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
 				out.Errof("[Error] Send host update error: %v\n", err)
