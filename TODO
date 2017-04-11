@@ -1,13 +1,13 @@
 #  v0.1
 
+  [ ] prevent write at host level
   [ ] errorC and meaningful errors to client
-  [ ] PROMPT support for zsh, csh / linux
   [ ] in-warp commands
     [ ] local unix socket that is a command channel > updateC
     [ ] warp ls
     [ ] warp authorize stan
   [ ] TLS
-  [ ] prevent write at host level
+  [ ] PROMPT support for zsh, csh / linux
   [x] factor session creation / remove hostC
   [x] rename Client/Session
   [x] rename warp/warp Session/Warp

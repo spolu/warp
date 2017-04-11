@@ -23,7 +23,7 @@ warp ae7fb6a24
 # Installation
 
 ```
-go get -u github.com/spolu/warp
+go get -u github.com/spolu/warp/cli/cmd/warp
 ```
 
 # Notes
