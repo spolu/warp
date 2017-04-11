@@ -217,23 +217,17 @@ func (w *Warp) handleHost(
 				break HOSTLOOP
 			}
 
-			for token, _ := range st.Modes {
-				_, ok := w.shellClients[token]
-				if !ok {
-					ss.SendError(ctx,
-						"invalid_host_update",
-						fmt.Sprintf(
-							"Host update unknown client: %s", token,
-						),
-					)
-					break HOSTLOOP
-				}
-			}
-
 			w.mutex.Lock()
 			w.windowSize = st.WindowSize
-			for token, mode := range st.Modes {
-				w.shellClients[token].mode = mode
+			for user, mode := range st.Modes {
+				if _, ok := w.shellClients[user]; ok {
+					w.shellClients[user].mode = mode
+				} else {
+					logging.Logf(ctx,
+						"Unknown user from host update: session=%s user=%s",
+						ss.ToString(), user,
+					)
+				}
 			}
 			w.mutex.Unlock()
 
