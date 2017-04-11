@@ -96,8 +96,8 @@ func (c *Open) Parse(
 	}
 
 	c.address = wrp.DefaultAddress
-	if os.Getenv("WRPD_ADDRESS") != "" {
-		c.address = os.Getenv("WRPD_ADDRESS")
+	if os.Getenv("WARPD_ADDRESS") != "" {
+		c.address = os.Getenv("WARPD_ADDRESS")
 	}
 
 	c.shell = "/bin/bash"
