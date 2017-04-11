@@ -112,9 +112,8 @@ func (w *Warp) updateShellClients(
 	sessions := w.Sessions(ctx)
 	for _, ss := range sessions {
 		logging.Logf(ctx,
-			"[%s] Sending (client) state: warp=%s cols=%d rows=%d",
-			ss.session.String(),
-			st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
+			"Sending (client) state: session=%s cols=%d rows=%d",
+			ss.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
 		)
 
 		ss.stateW.Encode(st)
@@ -128,9 +127,8 @@ func (w *Warp) updateHost(
 	st := w.State(ctx)
 
 	logging.Logf(ctx,
-		"[%s] Sending (host) state: warp=%s cols=%d rows=%d",
-		w.host.session.session.String(),
-		st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
+		"Sending (host) state: session=%s cols=%d rows=%d",
+		w.host.session.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
 	)
 
 	w.host.session.stateW.Encode(st)
@@ -145,10 +143,10 @@ func (w *Warp) rcvClientData(
 ) {
 	var mode wrp.Mode
 	w.mutex.Lock()
-	mode = w.clients[ss.session.User].mode
+	mode = w.shellClients[ss.session.User].mode
 	w.mutex.Unlock()
 
-	if mode&wrp.ModeWrite != 0 {
+	if mode&wrp.ModeShellWrite != 0 {
 		w.data <- data
 	}
 }
@@ -161,8 +159,8 @@ func (w *Warp) rcvHostData(
 	sessions := w.Sessions(ctx)
 	for _, s := range sessions {
 		logging.Logf(ctx,
-			"[%s] Sending data to session: warp=%s size=%d",
-			s.session.String(), w.token, len(data),
+			"Sending data to session: session=%s size=%d",
+			s.ToString(), len(data),
 		)
 		_, err := s.dataC.Write(data)
 		if err != nil {
@@ -186,7 +184,7 @@ func (w *Warp) handleHost(
 	HOSTLOOP:
 		for {
 			var st wrp.HostUpdate
-			if err := w.host.hostR.Decode(&st); err != nil {
+			if err := w.host.session.updateR.Decode(&st); err != nil {
 				ss.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf("Host update decoding failed: %v", err),
@@ -194,6 +192,7 @@ func (w *Warp) handleHost(
 				break HOSTLOOP
 			}
 
+			// Check that the warp token is the same.
 			if st.Warp != w.token {
 				ss.SendError(ctx,
 					"invalid_host_update",
@@ -203,18 +202,23 @@ func (w *Warp) handleHost(
 				)
 				break HOSTLOOP
 			}
-			if st.From.String() != ss.session.String() {
+
+			// Check that the session is the same in particular the secret to
+			// protect against spoofing attempts.
+			if st.From.Token != ss.session.Token ||
+				st.From.User != ss.session.User ||
+				st.From.Secret != ss.session.Secret {
 				ss.SendError(ctx,
 					"invalid_host_update",
 					fmt.Sprintf(
-						"Host update host mismatch: %s", st.From.String(),
+						"Host update host mismatch: %s", st.From.Token,
 					),
 				)
 				break HOSTLOOP
 			}
 
 			for token, _ := range st.Modes {
-				_, ok := w.clients[token]
+				_, ok := w.shellClients[token]
 				if !ok {
 					ss.SendError(ctx,
 						"invalid_host_update",
@@ -229,14 +233,13 @@ func (w *Warp) handleHost(
 			w.mutex.Lock()
 			w.windowSize = st.WindowSize
 			for token, mode := range st.Modes {
-				w.clients[token].mode = mode
+				w.shellClients[token].mode = mode
 			}
 			w.mutex.Unlock()
 
 			logging.Logf(ctx,
-				"[%s] Received host update: warp=%s cols=%d rows=%d",
-				ss.session.String(),
-				w.token, st.WindowSize.Rows, st.WindowSize.Cols,
+				"Received host update: session=%s cols=%d rows=%d",
+				ss.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
 			)
 
 			w.updateShellClients(ctx)
@@ -254,8 +257,8 @@ func (w *Warp) handleHost(
 				copy(cpy, buf)
 
 				logging.Logf(ctx,
-					"[%s] Received data from host: warp=%s size=%d",
-					ss.session.String(), w.token, nr,
+					"Received data from host: session=%s size=%d",
+					ss.ToString(), nr,
 				)
 				w.rcvHostData(ctx, ss, cpy)
 			}
@@ -282,8 +285,8 @@ func (w *Warp) handleHost(
 			case buf := <-w.data:
 
 				logging.Logf(ctx,
-					"[%s] Sending to host: warp=%s size=%d",
-					ss.session.String(), w.token, len(buf),
+					"Sending data to host: session=%s size=%d",
+					ss.ToString(), len(buf),
 				)
 
 				_, err := ss.dataC.Write(buf)
@@ -303,16 +306,16 @@ func (w *Warp) handleHost(
 	}()
 
 	logging.Logf(ctx,
-		"[%s] Host session running: warp=%s",
-		ss.session.String(), w.token,
+		"Host session running: session=%s",
+		ss.ToString(),
 	)
 
 	<-ss.ctx.Done()
 
 	// Cancel all clients.
 	logging.Logf(ctx,
-		"[%s] Cancelling all clients: warp=%s",
-		ss.session.String(), w.token,
+		"Cancelling all clients: session=%s",
+		ss.ToString(),
 	)
 	sessions := w.Sessions(ctx)
 	for _, s := range sessions {
@@ -334,12 +337,11 @@ func (w *Warp) handleClient(
 		// If we have a session conflict, let's kill the old one.
 		if s, ok := w.host.UserState.sessions[ss.session.Token]; ok {
 			s.cancel()
-			delete(w.host.UserState.sessions, ss.session.Token)
 		}
 		w.host.UserState.sessions[ss.session.Token] = ss
 	} else {
-		if _, ok := w.clients[ss.session.User]; !ok {
-			w.clients[ss.session.User] = &UserState{
+		if _, ok := w.shellClients[ss.session.User]; !ok {
+			w.shellClients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
 				mode:     wrp.ModeShellRead,
@@ -347,11 +349,10 @@ func (w *Warp) handleClient(
 			}
 		}
 		// If we have a session conflict, let's kill the old one.
-		if s, ok := w.clients[ss.session.User].sessions[ss.session.Token]; ok {
+		if s, ok := w.shellClients[ss.session.User].sessions[ss.session.Token]; ok {
 			s.cancel()
-			delete(w.clients[ss.session.User].sessions, ss.session.Token)
 		}
-		w.clients[ss.session.User].sessions[ss.session.Token] = ss
+		w.shellClients[ss.session.User].sessions[ss.session.Token] = ss
 	}
 	w.mutex.Unlock()
 
@@ -364,9 +365,9 @@ func (w *Warp) handleClient(
 				cpy := make([]byte, nr)
 				copy(cpy, buf)
 
-				fmt.Printf(
-					"[%s] Received data from client: warp=%s size=%d\n",
-					ss.session.String(), w.token, nr,
+				logging.Logf(ctx,
+					"Received data from client: session=%s size=%d",
+					ss.ToString(), nr,
 				)
 				w.rcvClientData(ctx, ss, cpy)
 			}
@@ -389,8 +390,8 @@ func (w *Warp) handleClient(
 	// Send initial state.
 	st := w.State(ctx)
 	logging.Logf(ctx,
-		"[%s] Sending initial state: warp=%s cols=%d rows=%d",
-		ss.session.String(), st.Warp, st.WindowSize.Rows, st.WindowSize.Cols,
+		"Sending initial state: session=%s cols=%d rows=%d",
+		ss.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
 	)
 	ss.stateW.Encode(st)
 
@@ -399,24 +400,24 @@ func (w *Warp) handleClient(
 	w.updateShellClients(ctx)
 
 	logging.Logf(ctx,
-		"[%s] Client session running: warp=%s",
-		ss.session.String(), w.token,
+		"Client session running: session=%s",
+		ss.ToString(),
 	)
 
 	<-ss.ctx.Done()
 
 	// Clean-up client.
 	logging.Logf(ctx,
-		"[%s] Cleaning-up client: warp=%s",
-		ss.session.String(), w.token,
+		"Cleaning-up client: session=%s",
+		ss.ToString(),
 	)
 	w.mutex.Lock()
 	if isHostSession {
 		delete(w.host.sessions, ss.session.Token)
 	} else {
-		delete(w.clients[ss.session.User].sessions, ss.session.Token)
-		if len(w.clients[ss.session.User].sessions) == 0 {
-			delete(w.clients, ss.session.User)
+		delete(w.shellClients[ss.session.User].sessions, ss.session.Token)
+		if len(w.shellClients[ss.session.User].sessions) == 0 {
+			delete(w.shellClients, ss.session.User)
 		}
 	}
 	w.mutex.Unlock()

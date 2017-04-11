@@ -113,8 +113,8 @@ func (s *Srv) handleHost(
 		)
 	}
 	logging.Logf(ctx,
-		"Initial host update received: session=%s warp=%s\n",
-		ss.session.String(), initial.Warp,
+		"Initial host update received: session=%s\n",
+		ss.ToString(),
 	)
 
 	s.mutex.Lock()
@@ -157,8 +157,8 @@ func (s *Srv) handleHost(
 
 	// Clean-up warp.
 	logging.Logf(ctx,
-		"Cleaning-up warp: session=%s warp=%s",
-		ss.session.String(), ss.warp,
+		"Cleaning-up warp: session=%s",
+		ss.ToString(),
 	)
 	s.mutex.Lock()
 	delete(s.warps, ss.warp)

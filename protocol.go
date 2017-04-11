@@ -1,7 +1,5 @@
 package wrp
 
-import "fmt"
-
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"
 
@@ -46,13 +44,6 @@ type Session struct {
 	Token  string
 	User   string
 	Secret string
-}
-
-func (u Session) String() string {
-	return fmt.Sprintf(
-		"%s:%s",
-		u.User, u.Token,
-	)
 }
 
 // State is the struct sent over the network to update sessions state.

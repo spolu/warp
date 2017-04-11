@@ -212,7 +212,7 @@ func (c *Open) Execute(
 	if err := c.updateW.Encode(wrp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
-		Type:     SsTpHost,
+		Type:     wrp.SsTpHost,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(

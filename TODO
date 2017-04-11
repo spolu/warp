@@ -1,8 +1,5 @@
 #  v0.1
 
-  [ ] factor session creation / remove hostC
-  [ ] rename Client/Session
-  [ ] rename wrp/warp Session/Warp
   [ ] errorC and meaningful errors to client
   [ ] PROMPT support for zsh, csh / linux
   [ ] in-wrp commands
@@ -11,6 +8,9 @@
     [ ] wrp authorize stan
   [ ] TLS
   [ ] prevent write at host level
+  [x] factor session creation / remove hostC
+  [x] rename Client/Session
+  [x] rename wrp/warp Session/Warp
 
   # chat
 

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/gob"
+	"fmt"
 	"net"
 
 	"github.com/hashicorp/yamux"
@@ -89,9 +90,8 @@ func NewSession(
 	ss.username = hello.Username
 
 	logging.Logf(ctx,
-		"Session hello received: "+
-			"session=%s warp=%s type=%s username=%s\n",
-		ss.session.String(), hello.Warp, hello.Type, hello.Username,
+		"Session hello received: session=%s type=%s username=%s",
+		ss.ToString(), hello.Warp, hello.Type, hello.Username,
 	)
 
 	// Open data channel dataC.
@@ -104,6 +104,13 @@ func NewSession(
 	}
 
 	return ss, nil
+}
+
+// ToStering returns a string that identifies the session for logging.
+func (ss *Session) ToString() string {
+	return fmt.Sprintf(
+		"%s/%s:%s", ss.warp, ss.session.User, ss.session.Token,
+	)
 }
 
 // TearDown tears down a session, closing and reclaiming channels.
@@ -122,7 +129,7 @@ func (ss *Session) SendError(
 ) {
 	// TODO actually send error
 	logging.Logf(ctx,
-		"[%s] Session error: code=%s message=%s",
-		ss.session.String(), code, message,
+		"Session error: session=%s code=%s message=%s",
+		ss.ToString(), code, message,
 	)
 }
