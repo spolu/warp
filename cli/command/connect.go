@@ -165,15 +165,15 @@ func (c *Connect) Execute(
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
 
-	// Send initial client update.
-	if err := c.updateW.Encode(wrp.ClientUpdate{
+	// Send initial SessionHello.
+	if err := c.updateW.Encode(wrp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
-		Hosting:  false,
+		Type:     wrp.SsTpShellClient,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
-			errors.Newf("Send client update error: %v", err),
+			errors.Newf("Send hello error: %v", err),
 		)
 	}
 

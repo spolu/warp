@@ -11,6 +11,19 @@ type Mode uint32
 const (
 	ModeShellRead  Mode = 1
 	ModeShellWrite Mode = 1 << 1
+	// Future usecases: ModeSpeakRead|ModeSpeakWrite|ModeSpeakMuted
+)
+
+// SessionType encodes the type of the session:
+type SessionType string
+
+const (
+	// SsTpHost the host session that created the warp (`warp open`)
+	SsTpHost SessionType = "host"
+	// SsTpShellClient shell client session (`warp connect`)
+	SsTpShellClient SessionType = "shell"
+	// SsTpChatClient chat client session (`warp chat`)
+	SsTpChatClient SessionType = "chat"
 )
 
 // Size reprensents a window size.
@@ -24,9 +37,8 @@ type User struct {
 	Token    string
 	Username string
 
+	Mode    Mode
 	Hosting bool
-
-	Mode Mode
 }
 
 // Session identifies a user's session.
@@ -56,7 +68,7 @@ type SessionHello struct {
 	Warp string
 	From Session
 
-	Hosting  bool
+	Type     SessionType
 	Username string
 }
 

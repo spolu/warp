@@ -51,8 +51,6 @@ type Open struct {
 	stateR  *gob.Decoder
 	updateC net.Conn
 	updateW *gob.Encoder
-	hostC   net.Conn
-	hostW   *gob.Encoder
 }
 
 // NewOpen constructs and initializes the command.
@@ -156,7 +154,7 @@ func (c *Open) Execute(
 			errors.Newf("Session error: %v", err),
 		)
 	}
-	// Closes stateC, updateC, hostC, dataC, mux and conn.
+	// Closes stateC, updateC, dataC, mux and conn.
 	defer mux.Close()
 
 	// Setup pty
@@ -210,15 +208,15 @@ func (c *Open) Execute(
 	}
 	c.updateW = gob.NewEncoder(c.updateC)
 
-	// Send initial client update.
-	if err := c.updateW.Encode(wrp.ClientUpdate{
+	// Send initial SessionHello.
+	if err := c.updateW.Encode(wrp.SessionHello{
 		Warp:     c.warp,
 		From:     c.session,
-		Hosting:  true,
+		Type:     SsTpHost,
 		Username: c.username,
 	}); err != nil {
 		return errors.Trace(
-			errors.Newf("Send client update error: %v", err),
+			errors.Newf("Send hello error: %v", err),
 		)
 	}
 
@@ -229,15 +227,6 @@ func (c *Open) Execute(
 			errors.Newf("Data channel open error: %v", err),
 		)
 	}
-
-	// Open host channel hostC.
-	c.hostC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Host channel open error: %v", err),
-		)
-	}
-	c.hostW = gob.NewEncoder(c.hostC)
 
 	// Send initial host update.
 	cols, rows, err := terminal.GetSize(stdin)
@@ -277,7 +266,7 @@ func (c *Open) Execute(
 		cancel()
 	}()
 
-	// Forward window resizes to pty and hostC
+	// Forward window resizes to pty and updateC
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
@@ -296,7 +285,7 @@ func (c *Open) Execute(
 				break
 			}
 
-			if err := c.hostW.Encode(wrp.HostUpdate{
+			if err := c.updateW.Encode(wrp.HostUpdate{
 				Warp:       c.warp,
 				From:       c.session,
 				WindowSize: wrp.Size{Rows: rows, Cols: cols},

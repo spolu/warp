@@ -2,9 +2,7 @@ package daemon
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/spolu/wrp"
@@ -20,22 +18,34 @@ type UserState struct {
 	sessions map[string]*Session
 }
 
+// User returns a wrp.User from the current UserState.
+func (u *UserState) User(
+	ctx context.Context,
+) wrp.User {
+	return wrp.User{
+		Token:    u.token,
+		Username: u.username,
+		Mode:     u.mode,
+		Hosting:  false,
+	}
+}
+
 // HostState represents the state of the host, in particular the host session,
 // along with its UserState.
 type HostState struct {
 	UserState
 	session *Session
-	hostC   net.Conn
-	hostR   *gob.Decoder
 }
 
-// Client returns a wrp.Client from the current UserState.
-func (u *UserState) Client(
+// User returns a wrp.User from the current HostState.
+func (h *HostState) User(
 	ctx context.Context,
-) wrp.Client {
-	return wrp.Client{
-		Username: u.username,
-		Mode:     u.mode,
+) wrp.User {
+	return wrp.User{
+		Token:    h.UserState.token,
+		Username: h.UserState.username,
+		Mode:     h.UserState.mode,
+		Hosting:  true,
 	}
 }
 
@@ -45,8 +55,8 @@ type Warp struct {
 
 	windowSize wrp.Size
 
-	host    *HostState
-	clients map[string]*UserState
+	host         *HostState
+	shellClients map[string]*UserState
 
 	data chan []byte
 
@@ -63,11 +73,13 @@ func (w *Warp) State(
 	state := wrp.State{
 		Warp:       w.token,
 		WindowSize: w.windowSize,
-		Host:       w.host.UserState.Client(ctx),
-		Clients:    map[string]wrp.Client{},
+		Users:      map[string]wrp.User{},
 	}
-	for token, user := range w.clients {
-		state.Clients[token] = user.Client(ctx)
+
+	state.Users[w.host.session.session.User] = w.host.User(ctx)
+
+	for token, user := range w.shellClients {
+		state.Users[token] = user.User(ctx)
 	}
 
 	return state
@@ -77,22 +89,23 @@ func (w *Warp) State(
 func (w *Warp) Sessions(
 	ctx context.Context,
 ) []*Session {
-	clients := []*Session{}
+	sessions := []*Session{}
 	w.mutex.Lock()
-	for _, user := range w.clients {
+	for _, user := range w.shellClients {
 		for _, c := range user.sessions {
-			clients = append(clients, c)
+			sessions = append(sessions, c)
 		}
 	}
+	// The host user's shell client sessions, if any.
 	for _, c := range w.host.UserState.sessions {
-		clients = append(clients, c)
+		sessions = append(sessions, c)
 	}
 	w.mutex.Unlock()
-	return clients
+	return sessions
 }
 
-// updateClients updates all clients with the current state.
-func (w *Warp) updateClients(
+// updateShellClients updates all shell clients with the current warp state.
+func (w *Warp) updateShellClients(
 	ctx context.Context,
 ) {
 	st := w.State(ctx)
@@ -108,7 +121,7 @@ func (w *Warp) updateClients(
 	}
 }
 
-// updateHost updates all clients with the current state.
+// updateHost updates the host with the current warp state.
 func (w *Warp) updateHost(
 	ctx context.Context,
 ) {
@@ -226,7 +239,7 @@ func (w *Warp) handleHost(
 				w.token, st.WindowSize.Rows, st.WindowSize.Cols,
 			)
 
-			w.updateClients(ctx)
+			w.updateShellClients(ctx)
 		}
 		ss.cancel()
 	}()
@@ -329,7 +342,7 @@ func (w *Warp) handleClient(
 			w.clients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
-				mode:     wrp.ModeRead,
+				mode:     wrp.ModeShellRead,
 				sessions: map[string]*Session{},
 			}
 		}
@@ -383,7 +396,7 @@ func (w *Warp) handleClient(
 
 	// Update host and clients.
 	w.updateHost(ctx)
-	w.updateClients(ctx)
+	w.updateShellClients(ctx)
 
 	logging.Logf(ctx,
 		"[%s] Client session running: warp=%s",
@@ -408,9 +421,9 @@ func (w *Warp) handleClient(
 	}
 	w.mutex.Unlock()
 
-	// Update remaining clients
-	w.updateClients(ctx)
+	// Update host and remaining clients
 	w.updateHost(ctx)
+	w.updateShellClients(ctx)
 
 	return nil
 }

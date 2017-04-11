@@ -7,12 +7,16 @@ import (
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/wrp"
+	"github.com/spolu/wrp/lib/errors"
 	"github.com/spolu/wrp/lib/logging"
 )
 
 // Session represents a client session connected to the warp.
 type Session struct {
 	session wrp.Session
+
+	warp        string
+	sessionType wrp.SessionType
 
 	username string
 
@@ -31,6 +35,86 @@ type Session struct {
 	cancel func()
 }
 
+// NewSession sets up a session, opens the associated channels and return a
+// Session object.
+func NewSession(
+	ctx context.Context,
+	cancel func(),
+	conn net.Conn,
+) (*Session, error) {
+	mux, err := yamux.Server(conn, nil)
+	if err != nil {
+		return nil, errors.Trace(
+			errors.Newf("Mux error: %v", err),
+		)
+	}
+
+	ss := &Session{
+		conn:   conn,
+		mux:    mux,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	// Opens state channel stateC.
+	ss.stateC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("State channel open error: %v", err),
+		)
+	}
+	ss.stateW = gob.NewEncoder(ss.stateC)
+
+	// Open update channel updateC.
+	ss.updateC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Update channel open error: %v", err),
+		)
+	}
+	ss.updateR = gob.NewDecoder(ss.updateC)
+
+	var hello wrp.SessionHello
+	if err := ss.updateR.Decode(&hello); err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Initial client update error: %v", err),
+		)
+	}
+	ss.session = hello.From
+	ss.warp = hello.Warp
+	ss.sessionType = hello.Type
+	ss.username = hello.Username
+
+	logging.Logf(ctx,
+		"Session hello received: "+
+			"session=%s warp=%s type=%s username=%s\n",
+		ss.session.String(), hello.Warp, hello.Type, hello.Username,
+	)
+
+	// Open data channel dataC.
+	ss.dataC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Data channel open error: %v", err),
+		)
+	}
+
+	return ss, nil
+}
+
+// TearDown tears down a session, closing and reclaiming channels.
+func (ss *Session) TearDown() {
+	// Closes stateC, updateC, dataC, mux and conn.
+	ss.mux.Close()
+	ss.cancel()
+}
+
+// SendError sends an error to the client which should trigger a disconnection
+// on its end.
 func (ss *Session) SendError(
 	ctx context.Context,
 	code string,
