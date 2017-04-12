@@ -56,8 +56,8 @@ type Warp struct {
 
 	windowSize warp.Size
 
-	host  *HostState
-	users map[string]*UserState
+	host    *HostState
+	clients map[string]*UserState
 
 	data chan []byte
 
@@ -79,20 +79,20 @@ func (w *Warp) State(
 
 	state.Users[w.host.session.session.User] = w.host.User(ctx)
 
-	for token, user := range w.users {
+	for token, user := range w.clients {
 		state.Users[token] = user.User(ctx)
 	}
 
 	return state
 }
 
-// Sessions return all connected sessions that are not the host session.
-func (w *Warp) Sessions(
+// CientSessions return all connected sessions that are not the host session.
+func (w *Warp) CientSessions(
 	ctx context.Context,
 ) []*Session {
 	sessions := []*Session{}
 	w.mutex.Lock()
-	for _, user := range w.users {
+	for _, user := range w.clients {
 		for _, c := range user.sessions {
 			sessions = append(sessions, c)
 		}
@@ -105,12 +105,12 @@ func (w *Warp) Sessions(
 	return sessions
 }
 
-// updateShellClients updates all shell clients with the current warp state.
-func (w *Warp) updateShellClients(
+// updateClientSessions updates all shell clients with the current warp state.
+func (w *Warp) updateClientSessions(
 	ctx context.Context,
 ) {
 	st := w.State(ctx)
-	sessions := w.Sessions(ctx)
+	sessions := w.CientSessions(ctx)
 	for _, ss := range sessions {
 		logging.Logf(ctx,
 			"Sending (client) state: session=%s cols=%d rows=%d",
@@ -144,7 +144,7 @@ func (w *Warp) rcvShellClientData(
 ) {
 	var mode warp.Mode
 	w.mutex.Lock()
-	mode = w.users[ss.session.User].mode
+	mode = w.clients[ss.session.User].mode
 	w.mutex.Unlock()
 
 	if mode&warp.ModeShellWrite != 0 {
@@ -157,7 +157,7 @@ func (w *Warp) rcvHostData(
 	ss *Session,
 	data []byte,
 ) {
-	sessions := w.Sessions(ctx)
+	sessions := w.CientSessions(ctx)
 	for _, s := range sessions {
 		logging.Logf(ctx,
 			"Sending data to session: session=%s size=%d",
@@ -238,8 +238,8 @@ func (w *Warp) handleHost(
 			w.mutex.Lock()
 			w.windowSize = st.WindowSize
 			for user, mode := range st.Modes {
-				if _, ok := w.users[user]; ok {
-					w.users[user].mode = mode
+				if _, ok := w.clients[user]; ok {
+					w.clients[user].mode = mode
 				} else {
 					logging.Logf(ctx,
 						"Unknown user from host update: session=%s user=%s",
@@ -254,7 +254,7 @@ func (w *Warp) handleHost(
 				ss.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
 			)
 
-			w.updateShellClients(ctx)
+			w.updateClientSessions(ctx)
 		}
 		ss.cancel()
 	}()
@@ -302,7 +302,7 @@ func (w *Warp) handleHost(
 
 	// Update host and clients (should be no client).
 	w.updateHost(ctx)
-	w.updateShellClients(ctx)
+	w.updateClientSessions(ctx)
 
 	logging.Logf(ctx,
 		"Host session running: session=%s",
@@ -316,7 +316,7 @@ func (w *Warp) handleHost(
 		"Cancelling all clients: session=%s",
 		ss.ToString(),
 	)
-	sessions := w.Sessions(ctx)
+	sessions := w.CientSessions(ctx)
 	for _, s := range sessions {
 		s.cancel()
 	}
@@ -339,8 +339,8 @@ func (w *Warp) handleShellClient(
 		}
 		w.host.UserState.sessions[ss.session.Token] = ss
 	} else {
-		if _, ok := w.users[ss.session.User]; !ok {
-			w.users[ss.session.User] = &UserState{
+		if _, ok := w.clients[ss.session.User]; !ok {
+			w.clients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
 				mode:     warp.DefaultUserMode,
@@ -348,10 +348,10 @@ func (w *Warp) handleShellClient(
 			}
 		}
 		// If we have a session conflict, let's kill the old one.
-		if s, ok := w.users[ss.session.User].sessions[ss.session.Token]; ok {
+		if s, ok := w.clients[ss.session.User].sessions[ss.session.Token]; ok {
 			s.TearDown()
 		}
-		w.users[ss.session.User].sessions[ss.session.Token] = ss
+		w.clients[ss.session.User].sessions[ss.session.Token] = ss
 	}
 	w.mutex.Unlock()
 
@@ -373,7 +373,7 @@ func (w *Warp) handleShellClient(
 
 	// Update host and clients (including the new session).
 	w.updateHost(ctx)
-	w.updateShellClients(ctx)
+	w.updateClientSessions(ctx)
 
 	logging.Logf(ctx,
 		"Client session running: session=%s",
@@ -392,16 +392,16 @@ func (w *Warp) handleShellClient(
 	if isHostSession {
 		delete(w.host.sessions, ss.session.Token)
 	} else {
-		delete(w.users[ss.session.User].sessions, ss.session.Token)
-		if len(w.users[ss.session.User].sessions) == 0 {
-			delete(w.users, ss.session.User)
+		delete(w.clients[ss.session.User].sessions, ss.session.Token)
+		if len(w.clients[ss.session.User].sessions) == 0 {
+			delete(w.clients, ss.session.User)
 		}
 	}
 	w.mutex.Unlock()
 
 	// Update host and remaining clients
 	w.updateHost(ctx)
-	w.updateShellClients(ctx)
+	w.updateClientSessions(ctx)
 
 	return nil
 }

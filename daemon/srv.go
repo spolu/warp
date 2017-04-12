@@ -128,12 +128,12 @@ func (s *Srv) handleHost(
 	}
 
 	s.warps[ss.warp] = &Warp{
-		token:        ss.warp,
-		windowSize:   initial.WindowSize,
-		host:         nil,
-		shellClients: map[string]*UserState{},
-		data:         make(chan []byte),
-		mutex:        &sync.Mutex{},
+		token:      ss.warp,
+		windowSize: initial.WindowSize,
+		host:       nil,
+		clients:    map[string]*UserState{},
+		data:       make(chan []byte),
+		mutex:      &sync.Mutex{},
 	}
 
 	s.mutex.Unlock()
