@@ -56,8 +56,8 @@ type Warp struct {
 
 	windowSize warp.Size
 
-	host         *HostState
-	shellClients map[string]*UserState
+	host  *HostState
+	users map[string]*UserState
 
 	data chan []byte
 
@@ -79,7 +79,7 @@ func (w *Warp) State(
 
 	state.Users[w.host.session.session.User] = w.host.User(ctx)
 
-	for token, user := range w.shellClients {
+	for token, user := range w.users {
 		state.Users[token] = user.User(ctx)
 	}
 
@@ -92,7 +92,7 @@ func (w *Warp) Sessions(
 ) []*Session {
 	sessions := []*Session{}
 	w.mutex.Lock()
-	for _, user := range w.shellClients {
+	for _, user := range w.users {
 		for _, c := range user.sessions {
 			sessions = append(sessions, c)
 		}
@@ -135,16 +135,16 @@ func (w *Warp) updateHost(
 	w.host.session.stateW.Encode(st)
 }
 
-// rcvClientData handles incoming client data and commits it to the data
+// rcvShellClientData handles incoming client data and commits it to the data
 // channel if the client is authorized to do so.
-func (w *Warp) rcvClientData(
+func (w *Warp) rcvShellClientData(
 	ctx context.Context,
 	ss *Session,
 	data []byte,
 ) {
 	var mode warp.Mode
 	w.mutex.Lock()
-	mode = w.shellClients[ss.session.User].mode
+	mode = w.users[ss.session.User].mode
 	w.mutex.Unlock()
 
 	if mode&warp.ModeShellWrite != 0 {
@@ -238,8 +238,8 @@ func (w *Warp) handleHost(
 			w.mutex.Lock()
 			w.windowSize = st.WindowSize
 			for user, mode := range st.Modes {
-				if _, ok := w.shellClients[user]; ok {
-					w.shellClients[user].mode = mode
+				if _, ok := w.users[user]; ok {
+					w.users[user].mode = mode
 				} else {
 					logging.Logf(ctx,
 						"Unknown user from host update: session=%s user=%s",
@@ -335,12 +335,12 @@ func (w *Warp) handleShellClient(
 		isHostSession = true
 		// If we have a session conflict, let's kill the old one.
 		if s, ok := w.host.UserState.sessions[ss.session.Token]; ok {
-			s.cancel()
+			s.TearDown()
 		}
 		w.host.UserState.sessions[ss.session.Token] = ss
 	} else {
-		if _, ok := w.shellClients[ss.session.User]; !ok {
-			w.shellClients[ss.session.User] = &UserState{
+		if _, ok := w.users[ss.session.User]; !ok {
+			w.users[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
 				mode:     warp.DefaultUserMode,
@@ -348,21 +348,21 @@ func (w *Warp) handleShellClient(
 			}
 		}
 		// If we have a session conflict, let's kill the old one.
-		if s, ok := w.shellClients[ss.session.User].sessions[ss.session.Token]; ok {
-			s.cancel()
+		if s, ok := w.users[ss.session.User].sessions[ss.session.Token]; ok {
+			s.TearDown()
 		}
-		w.shellClients[ss.session.User].sessions[ss.session.Token] = ss
+		w.users[ss.session.User].sessions[ss.session.Token] = ss
 	}
 	w.mutex.Unlock()
 
-	// Receive client data.
+	// Receive shell client data.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			logging.Logf(ctx,
 				"Received data from client: session=%s size=%d",
 				ss.ToString(), len(data),
 			)
-			w.rcvClientData(ctx, ss, data)
+			w.rcvShellClientData(ctx, ss, data)
 		}, ss.dataC)
 		ss.SendError(ctx,
 			"data_receive_failed",
@@ -387,13 +387,14 @@ func (w *Warp) handleShellClient(
 		"Cleaning-up client: session=%s",
 		ss.ToString(),
 	)
+
 	w.mutex.Lock()
 	if isHostSession {
 		delete(w.host.sessions, ss.session.Token)
 	} else {
-		delete(w.shellClients[ss.session.User].sessions, ss.session.Token)
-		if len(w.shellClients[ss.session.User].sessions) == 0 {
-			delete(w.shellClients, ss.session.User)
+		delete(w.users[ss.session.User].sessions, ss.session.Token)
+		if len(w.users[ss.session.User].sessions) == 0 {
+			delete(w.users, ss.session.User)
 		}
 	}
 	w.mutex.Unlock()
