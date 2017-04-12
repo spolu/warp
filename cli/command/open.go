@@ -317,7 +317,10 @@ func (c *Open) Execute(
 
 	// Multiplex dataC to pty
 	go func() {
-		cli.Multiplex(ctx, []io.Writer{c.pty}, c.dataC)
+		cli.MultiplexCheck(
+			ctx, []io.Writer{c.pty}, c.dataC, func() bool {
+				return c.state.HostCanReceiveWrite()
+			})
 		cancel()
 	}()
 

@@ -42,8 +42,10 @@ func NewWarp(
 		mutex: &sync.Mutex{},
 	}
 	if hello.Type == warp.SsTpHost {
-		w.hosting = true
-		w.users[hello.From.User].mode = warp.DefaultHostMode
+		userState := w.users[hello.From.User]
+		userState.hosting = true
+		userState.mode = warp.DefaultHostMode
+		w.users[hello.From.User] = userState
 	}
 	return w
 }
@@ -55,7 +57,7 @@ func NewWarp(
 // user, the default secure modes are used (~read-only).
 func (w *Warp) Update(
 	state warp.State,
-	preserveModes bool,
+	hosting bool,
 ) error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
@@ -66,16 +68,26 @@ func (w *Warp) Update(
 		)
 	}
 
-	w.windowSize = state.WindowState
+	w.windowSize = state.WindowSize
 
 	for token, user := range state.Users {
+		if token != user.Token {
+			return errors.Trace(
+				errors.Newf(
+					"User token mismatch: %s <> %s",
+					token, user.Token,
+				),
+			)
+		}
 		if _, ok := w.users[token]; !ok {
-			if user.Hosting {
+			// User connected.
+
+			if hosting && user.Hosting {
 				return errors.Trace(
 					errors.Newf("Unexptected hosting user update: %s", token),
 				)
 			}
-			if preserveModes && user.Mode != warp.DefaultUserMode {
+			if hosting && user.Mode != warp.DefaultUserMode {
 				return errors.Trace(
 					errors.Newf(
 						"Unexptected user update mode: %s %d",
@@ -88,11 +100,27 @@ func (w *Warp) Update(
 			w.users[token] = UserState{
 				token:    token,
 				username: user.Username,
-				mode:     user.Mode,
+				mode:     warp.DefaultUserMode,
 				hosting:  user.Hosting,
 			}
+		} else {
+			// Update the user state.
+			userState := w.users[token]
+			userState.username = user.Username
+			if !hosting {
+				userState.mode = user.Mode
+			}
+			w.users[token] = userState
 		}
 	}
+
+	for token, _ := range w.users {
+		if _, ok := state.Users[token]; !ok {
+			// User disconnected.
+			delete(w.users, token)
+		}
+	}
+
 	return nil
 }
 
@@ -100,5 +128,35 @@ func (w *Warp) Update(
 func (w *Warp) SetMode(
 	user string,
 	mode warp.Mode,
-) {
+) error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	userState, ok := w.users[user]
+	if !ok {
+		return errors.Trace(
+			errors.Newf("Unknown user: %s", user),
+		)
+	}
+
+	userState.mode = mode
+	w.users[user] = userState
+
+	return nil
+}
+
+// HostCanReceiveWrite computes whether the host can receive write from the
+// shell clients. This is used as defense in depth to prevent any write if
+// that's not the case.
+func (w *Warp) HostCanReceiveWrite() bool {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	can := false
+	for _, user := range w.users {
+		if !user.hosting && user.mode&warp.ModeShellWrite != 0 {
+			can = true
+		}
+	}
+	return can
 }
