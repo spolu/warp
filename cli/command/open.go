@@ -21,6 +21,7 @@ import (
 	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/errors"
 	"github.com/spolu/warp/lib/out"
+	"github.com/spolu/warp/lib/plex"
 	"github.com/spolu/warp/lib/token"
 )
 
@@ -311,22 +312,29 @@ func (c *Open) Execute(
 
 	// Multiplex shell to dataC, Stdout
 	go func() {
-		cli.Multiplex(ctx, []io.Writer{c.dataC, os.Stdout}, c.pty)
+		plex.Run(ctx, func(data []byte) {
+			for _, d := range []io.Writer{c.dataC, os.Stdout} {
+				d.Write(data)
+			}
+		}, c.pty)
 		cancel()
 	}()
 
 	// Multiplex dataC to pty
 	go func() {
-		cli.MultiplexCheck(
-			ctx, []io.Writer{c.pty}, c.dataC, func() bool {
-				return c.state.HostCanReceiveWrite()
-			})
+		plex.Run(ctx, func(data []byte) {
+			if c.state.HostCanReceiveWrite() {
+				c.pty.Write(data)
+			}
+		}, c.dataC)
 		cancel()
 	}()
 
 	// Multiplex Stdin to pty
 	go func() {
-		cli.Multiplex(ctx, []io.Writer{c.pty}, os.Stdin)
+		plex.Run(ctx, func(data []byte) {
+			c.pty.Write(data)
+		}, os.Stdin)
 		cancel()
 	}()
 

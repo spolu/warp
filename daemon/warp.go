@@ -7,6 +7,7 @@ import (
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/logging"
+	"github.com/spolu/warp/lib/plex"
 )
 
 // UserState represents the state of a user along with a list of all his
@@ -179,6 +180,23 @@ func (w *Warp) handleHost(
 	ctx context.Context,
 	ss *Session,
 ) error {
+	// Add the host.
+	w.mutex.Lock()
+	w.host = &HostState{
+		UserState: UserState{
+			token:    ss.session.User,
+			username: ss.username,
+			mode:     warp.DefaultHostMode,
+			// Initialize host sessions as empty as the current client is
+			// the host session and does not act as "client". Subsequent
+			// client session coming from the host would be added to this
+			// list.
+			sessions: map[string]*Session{},
+		},
+		session: ss,
+	}
+	w.mutex.Unlock()
+
 	// run state updates
 	go func() {
 	HOSTLOOP:
@@ -277,7 +295,6 @@ func (w *Warp) handleHost(
 		for {
 			select {
 			case buf := <-w.data:
-
 				logging.Logf(ctx,
 					"Sending data to host: session=%s size=%d",
 					ss.ToString(), len(buf),
@@ -323,7 +340,7 @@ func (w *Warp) handleHost(
 	return nil
 }
 
-func (w *Warp) handleClient(
+func (w *Warp) handleShellClient(
 	ctx context.Context,
 	ss *Session,
 ) error {
@@ -356,32 +373,17 @@ func (w *Warp) handleClient(
 
 	// Receive client data.
 	go func() {
-		buf := make([]byte, 1024)
-		for {
-			nr, err := ss.dataC.Read(buf)
-			if nr > 0 {
-				cpy := make([]byte, nr)
-				copy(cpy, buf)
-
-				logging.Logf(ctx,
-					"Received data from client: session=%s size=%d",
-					ss.ToString(), nr,
-				)
-				w.rcvClientData(ctx, ss, cpy)
-			}
-			if err != nil {
-				ss.SendError(ctx,
-					"data_receive_failed",
-					fmt.Sprintf("Error receiving data: %v", err),
-				)
-				break
-			}
-			select {
-			case <-ss.ctx.Done():
-				break
-			default:
-			}
-		}
+		plex.Run(ctx, func(data []byte) {
+			logging.Logf(ctx,
+				"Received data from client: session=%s size=%d",
+				ss.ToString(), len(data),
+			)
+			w.rcvClientData(ctx, ss, data)
+		}, ss.dataC)
+		ss.SendError(ctx,
+			"data_receive_failed",
+			"Error receiving terminal input",
+		)
 		ss.cancel()
 	}()
 

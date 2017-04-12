@@ -92,7 +92,7 @@ func (s *Srv) handle(
 	case warp.SsTpHost:
 		err = s.handleHost(ctx, ss)
 	case warp.SsTpShellClient:
-		err = s.handleClient(ctx, ss)
+		err = s.handleShellClient(ctx, ss)
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -128,21 +128,9 @@ func (s *Srv) handleHost(
 	}
 
 	s.warps[ss.warp] = &Warp{
-		token:      ss.warp,
-		windowSize: initial.WindowSize,
-		host: &HostState{
-			UserState: UserState{
-				token:    ss.session.User,
-				username: ss.username,
-				mode:     warp.DefaultHostMode,
-				// Initialize host sessions as empty as the current client is
-				// the host session and does not act as "client". Subsequent
-				// client session coming from the host would be added to this
-				// list.
-				sessions: map[string]*Session{},
-			},
-			session: ss,
-		},
+		token:        ss.warp,
+		windowSize:   initial.WindowSize,
+		host:         nil,
 		shellClients: map[string]*UserState{},
 		data:         make(chan []byte),
 		mutex:        &sync.Mutex{},
@@ -167,9 +155,9 @@ func (s *Srv) handleHost(
 	return nil
 }
 
-// handleClient handles a client connecting, retrieving the required warp or
+// handleShellClient handles a client connecting, retrieving the required warp or
 // erroring accordingly.
-func (s *Srv) handleClient(
+func (s *Srv) handleShellClient(
 	ctx context.Context,
 	ss *Session,
 ) error {
@@ -183,7 +171,7 @@ func (s *Srv) handleClient(
 		)
 	}
 
-	err := s.warps[ss.warp].handleClient(ctx, ss)
+	err := s.warps[ss.warp].handleShellClient(ctx, ss)
 	if err != nil {
 		return errors.Trace(err)
 	}

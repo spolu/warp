@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/user"
@@ -16,6 +15,7 @@ import (
 	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/errors"
 	"github.com/spolu/warp/lib/out"
+	"github.com/spolu/warp/lib/plex"
 	"github.com/spolu/warp/lib/token"
 )
 
@@ -226,13 +226,17 @@ func (c *Connect) Execute(
 
 	// Multiplex Stdin to dataC.
 	go func() {
-		cli.Multiplex(ctx, []io.Writer{c.dataC}, os.Stdin)
+		plex.Run(ctx, func(data []byte) {
+			c.dataC.Write(data)
+		}, os.Stdin)
 		cancel()
 	}()
 
 	// Multiplex dataC to Stdout.
 	go func() {
-		cli.Multiplex(ctx, []io.Writer{os.Stdout}, c.dataC)
+		plex.Run(ctx, func(data []byte) {
+			os.Stdout.Write(data)
+		}, c.dataC)
 		cancel()
 	}()
 
