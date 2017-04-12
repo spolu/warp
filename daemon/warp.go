@@ -261,32 +261,17 @@ func (w *Warp) handleHost(
 
 	// Receive host data.
 	go func() {
-		buf := make([]byte, 1024)
-		for {
-			nr, err := ss.dataC.Read(buf)
-			if nr > 0 {
-				cpy := make([]byte, nr)
-				copy(cpy, buf)
-
-				logging.Logf(ctx,
-					"Received data from host: session=%s size=%d",
-					ss.ToString(), nr,
-				)
-				w.rcvHostData(ctx, ss, cpy)
-			}
-			if err != nil {
-				ss.SendError(ctx,
-					"data_receive_failed",
-					fmt.Sprintf("Error receiving data: %v", err),
-				)
-				break
-			}
-			select {
-			case <-ss.ctx.Done():
-				break
-			default:
-			}
-		}
+		plex.Run(ctx, func(data []byte) {
+			logging.Logf(ctx,
+				"Received data from host: session=%s size=%d",
+				ss.ToString(), len(data),
+			)
+			w.rcvHostData(ctx, ss, data)
+		}, ss.dataC)
+		ss.SendError(ctx,
+			"data_receive_failed",
+			"Error receiving terminal output.",
+		)
 		ss.cancel()
 	}()
 
@@ -299,13 +284,8 @@ func (w *Warp) handleHost(
 					"Sending data to host: session=%s size=%d",
 					ss.ToString(), len(buf),
 				)
-
 				_, err := ss.dataC.Write(buf)
 				if err != nil {
-					ss.SendError(ctx,
-						"data_send_failed",
-						fmt.Sprintf("Error sending data: %v", err),
-					)
 					break
 				}
 			case <-ss.ctx.Done():
@@ -313,6 +293,10 @@ func (w *Warp) handleHost(
 			default:
 			}
 		}
+		ss.SendError(ctx,
+			"data_send_failed",
+			fmt.Sprintf("Error receiving remote input."),
+		)
 		ss.cancel()
 	}()
 
