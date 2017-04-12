@@ -134,7 +134,7 @@ func (s *Srv) handleHost(
 			UserState: UserState{
 				token:    ss.session.User,
 				username: ss.username,
-				mode:     warp.ModeShellRead | warp.ModeShellWrite,
+				mode:     warp.DefaultHostMode,
 				// Initialize host sessions as empty as the current client is
 				// the host session and does not act as "client". Subsequent
 				// client session coming from the host would be added to this

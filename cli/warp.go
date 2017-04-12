@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/spolu/warp"
+	"github.com/spolu/warp/lib/errors"
 )
 
 // UserState represents the state of a user as seen client-side.
@@ -34,11 +35,15 @@ func NewWarp(
 			hello.From.User: UserState{
 				token:    hello.From.User,
 				username: hello.Username,
-				mode:     warp.ModeShellRead,
+				mode:     warp.DefaultUserMode,
 				hosting:  false,
 			},
 		},
 		mutex: &sync.Mutex{},
+	}
+	if hello.Type == warp.SsTpHost {
+		w.hosting = true
+		w.users[hello.From.User].mode = warp.DefaultHostMode
 	}
 	return w
 }
@@ -52,6 +57,42 @@ func (w *Warp) Update(
 	state warp.State,
 	preserveModes bool,
 ) error {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	if state.Warp != w.token {
+		return errors.Trace(
+			errors.Newf("Warp token mismatch: %s", state.Warp),
+		)
+	}
+
+	w.windowSize = state.WindowState
+
+	for token, user := range state.Users {
+		if _, ok := w.users[token]; !ok {
+			if user.Hosting {
+				return errors.Trace(
+					errors.Newf("Unexptected hosting user update: %s", token),
+				)
+			}
+			if preserveModes && user.Mode != warp.DefaultUserMode {
+				return errors.Trace(
+					errors.Newf(
+						"Unexptected user update mode: %s %d",
+						token, user.Mode,
+					),
+				)
+			}
+
+			// We have a new user that connected let's add it.
+			w.users[token] = UserState{
+				token:    token,
+				username: user.Username,
+				mode:     user.Mode,
+				hosting:  user.Hosting,
+			}
+		}
+	}
 	return nil
 }
 

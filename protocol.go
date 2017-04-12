@@ -10,6 +10,9 @@ const (
 	ModeShellRead  Mode = 1
 	ModeShellWrite Mode = 1 << 1
 	// Future usecases: ModeSpeakRead|ModeSpeakWrite|ModeSpeakMuted
+
+	DefaultHostMode = ModeShellRead | ModeShellWrite
+	DefaultUserMode = ModeShellRead
 )
 
 // SessionType encodes the type of the session:

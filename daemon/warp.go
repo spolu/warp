@@ -342,7 +342,7 @@ func (w *Warp) handleClient(
 			w.shellClients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
-				mode:     warp.ModeShellRead,
+				mode:     warp.DefaultUserMode,
 				sessions: map[string]*Session{},
 			}
 		}
