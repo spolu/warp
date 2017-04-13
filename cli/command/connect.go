@@ -88,7 +88,7 @@ func (c *Connect) Parse(
 	user, err := user.Current()
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Error retrieving current user: %v", err),
+			errors.Newf("Failed to retrieve current user: %v.", err),
 		)
 	}
 	c.username = user.Username
@@ -111,12 +111,18 @@ func (c *Connect) Execute(
 	conn, err := net.Dial("tcp", c.address)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Connection error: %v", err),
+			errors.Newf("Connection to warpd failed: %v.", err),
 		)
 	}
 
 	c.ss, err = NewSession(
-		ctx, c.session, c.warp, warp.SsTpShellClient, c.username, cancel, conn,
+		ctx,
+		c.session,
+		c.warp,
+		warp.SsTpShellClient,
+		c.username,
+		cancel,
+		conn,
 	)
 	if err != nil {
 		return errors.Trace(err)
@@ -139,7 +145,7 @@ func (c *Connect) Execute(
 	old, err := terminal.MakeRaw(stdin)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Unable to make terminal raw: %v", err),
+			errors.Newf("Unable to put terminal in raw mode: %v.", err),
 		)
 	}
 	// Restors the terminal once we're done.
@@ -152,12 +158,10 @@ func (c *Connect) Execute(
 		for {
 			var st warp.State
 			if err := c.ss.stateR.Decode(&st); err != nil {
-				out.Errof("[Error] State channel decode error: %v\n", err)
 				break
 			}
 
 			if err := c.ss.state.Update(st, false); err != nil {
-				out.Errof("[Error] State update error: %v\n", err)
 				break
 			}
 
@@ -170,7 +174,16 @@ func (c *Connect) Execute(
 			default:
 			}
 		}
-		cancel()
+		c.ss.TearDown()
+	}()
+
+	// Listen for errors.
+	go func() {
+		var e warp.Error
+		if err := c.ss.errorR.Decode(&e); err == nil {
+			c.ss.ErrorOut(e.Code, errors.Newf(e.Message))
+		}
+		c.ss.TearDown()
 	}()
 
 	// Multiplex Stdin to dataC.
@@ -178,7 +191,7 @@ func (c *Connect) Execute(
 		plex.Run(ctx, func(data []byte) {
 			c.ss.dataC.Write(data)
 		}, os.Stdin)
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Multiplex dataC to Stdout.
@@ -186,7 +199,7 @@ func (c *Connect) Execute(
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
 		}, c.ss.dataC)
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Wait for cancellation to return and clean up everything.

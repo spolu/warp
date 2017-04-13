@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/gob"
 	"net"
+	"time"
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/out"
 )
 
 type Session struct {
@@ -123,7 +125,25 @@ func NewSession(
 
 // TearDown tears down a session, closing and reclaiming channels.
 func (ss *Session) TearDown() {
-	// Closes stateC, updateC, dataC, mux and conn.
+	// Closes stateC, updateC, errorC, dataC, mux and conn.
 	ss.mux.Close()
 	ss.cancel()
+}
+
+// ErrorOut is used to print an error with a slight delay to let the terminal
+// be resoted from raw modoe.
+func (ss *Session) ErrorOut(
+	message string,
+	err error,
+) {
+	go func() {
+		// Sleep for 50ms to give time to the terminal to be restored. The
+		// program will sleep for 100ms before existing to give us a chance to
+		// execute.
+		time.Sleep(50 * time.Millisecond)
+		out.Errof(
+			"[Error] %s: %v.\n",
+			message, err,
+		)
+	}()
 }

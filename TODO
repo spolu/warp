@@ -1,6 +1,5 @@
 #  v0.1
 
-  [ ] errorC and meaningful errors to client
   [ ] in-warp commands
     [ ] local unix socket that is a command channel > updateC
     [ ] warp ls
@@ -8,6 +7,7 @@
   [ ] TLS
   [ ] host reconnection (closes warp for clients but reopens automatically)
   [ ] better PROMPT support for zsh, csh / linux
+  [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC
   [x] rename Client/Session
   [x] rename warp/warp Session/Warp

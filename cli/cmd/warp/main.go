@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/spolu/warp/cli"
 	_ "github.com/spolu/warp/cli/command"
@@ -18,4 +19,9 @@ func main() {
 	if err != nil {
 		out.Errof("[Error] %s\n", err.Error())
 	}
+
+	// Sleep for 100 give time to all goroutine to exist properly and to the
+	// session ErrorOut to print out after the terminal is restored from raw
+	// mode.
+	time.Sleep(100 * time.Millisecond)
 }

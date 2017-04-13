@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
@@ -32,8 +33,9 @@ type Session struct {
 	errorW  *gob.Encoder
 	dataC   net.Conn
 
-	ctx    context.Context
-	cancel func()
+	tornDown bool
+	ctx      context.Context
+	cancel   func()
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -51,10 +53,11 @@ func NewSession(
 	}
 
 	ss := &Session{
-		conn:   conn,
-		mux:    mux,
-		ctx:    ctx,
-		cancel: cancel,
+		conn:     conn,
+		mux:      mux,
+		tornDown: false,
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 
 	// Opens state channel stateC.
@@ -125,9 +128,17 @@ func (ss *Session) ToString() string {
 
 // TearDown tears down a session, closing and reclaiming channels.
 func (ss *Session) TearDown() {
-	// Closes stateC, updateC, dataC, mux and conn.
-	ss.mux.Close()
-	ss.cancel()
+	if !ss.tornDown {
+		ss.tornDown = true
+		ss.cancel()
+		go func() {
+			// Sleep for 500ms before killing the session to give a chance to
+			// the bufffers to flush.
+			time.Sleep(500 * time.Millisecond)
+			// Closes stateC, updateC, errorC, dataC, mux and conn.
+			ss.mux.Close()
+		}()
+	}
 }
 
 // SendError sends an error to the client which should trigger a disconnection
@@ -137,11 +148,22 @@ func (ss *Session) SendError(
 	code string,
 	message string,
 ) {
-	// TODO actually send error
+	if ss.tornDown {
+		return
+	}
 	logging.Logf(ctx,
-		"Session error: session=%s code=%s message=%s",
+		"Sending session error: session=%s code=%s message=%s",
 		ss.ToString(), code, message,
 	)
+	if err := ss.errorW.Encode(warp.Error{
+		Code:    code,
+		Message: message,
+	}); err != nil {
+		logging.Logf(ctx,
+			"Error sending session error: session=%s error=%v",
+			ss.ToString(), err,
+		)
+	}
 }
 
 // SendInternalError sends an internal error to the client which should trigger

@@ -49,6 +49,12 @@ type Session struct {
 	Secret string
 }
 
+// Error is th struct sent over the network in case of errors.
+type Error struct {
+	Code    string
+	Message string
+}
+
 // State is the struct sent over the network to update sessions state.
 type State struct {
 	Warp       string

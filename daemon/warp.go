@@ -9,6 +9,20 @@ import (
 	"github.com/spolu/warp/lib/plex"
 )
 
+// Warp represents a pty served from a remote host attached to a token.
+type Warp struct {
+	token string
+
+	windowSize warp.Size
+
+	host    *HostState
+	clients map[string]*UserState
+
+	data chan []byte
+
+	mutex *sync.Mutex
+}
+
 // UserState represents the state of a user along with a list of all his
 // sessions.
 type UserState struct {
@@ -47,20 +61,6 @@ func (h *HostState) User(
 		Mode:     h.UserState.mode,
 		Hosting:  true,
 	}
-}
-
-// Warp represents a pty served from a remote host attached to a token.
-type Warp struct {
-	token string
-
-	windowSize warp.Size
-
-	host    *HostState
-	clients map[string]*UserState
-
-	data chan []byte
-
-	mutex *sync.Mutex
 }
 
 // State computes a warp.State from the current session. It acquires the session
@@ -124,14 +124,16 @@ func (w *Warp) updateClientSessions(
 func (w *Warp) updateHost(
 	ctx context.Context,
 ) {
-	st := w.State(ctx)
+	if !w.host.session.tornDown {
+		st := w.State(ctx)
 
-	logging.Logf(ctx,
-		"Sending (host) state: session=%s cols=%d rows=%d",
-		w.host.session.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
-	)
+		logging.Logf(ctx,
+			"Sending (host) state: session=%s cols=%d rows=%d",
+			w.host.session.ToString(), st.WindowSize.Rows, st.WindowSize.Cols,
+		)
 
-	w.host.session.stateW.Encode(st)
+		w.host.session.stateW.Encode(st)
+	}
 }
 
 // rcvShellClientData handles incoming client data and commits it to the data
@@ -204,8 +206,8 @@ func (w *Warp) handleHost(
 			var st warp.HostUpdate
 			if err := w.host.session.updateR.Decode(&st); err != nil {
 				logging.Logf(ctx,
-					"Error receiving host udpate: session=%s error=%v",
-					ss.ToString, err,
+					"Error receiving host update: session=%s error=%v",
+					ss.ToString(), err,
 				)
 				break HOSTLOOP
 			}

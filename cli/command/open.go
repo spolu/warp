@@ -107,7 +107,8 @@ func (c *Open) Parse(
 
 	// Sets the BASH prompt
 	prompt := fmt.Sprintf(
-		"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] \\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+		"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] "+
+			"\\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
 		c.warp,
 	)
 	os.Setenv("PS1", prompt)
@@ -154,15 +155,16 @@ func (c *Open) Execute(
 	c.pty, err = pty.Start(c.cmd)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("PTY error: %v", err),
+			errors.Newf("Failed to create pty: %v.", err),
 		)
 	}
 	go func() {
 		if err := c.cmd.Wait(); err != nil {
-			out.Errof("[Error] Cmd wait error: %v\n", err)
+			c.ss.ErrorOut("Shell execution failed", err)
 		}
-		cancel()
+		c.ss.TearDown()
 	}()
+
 	// Closes the newly created pty.
 	defer c.pty.Close()
 
@@ -176,7 +178,7 @@ func (c *Open) Execute(
 	old, err := terminal.MakeRaw(stdin)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Unable to make terminal raw: %v", err),
+			errors.Newf("Unable to put terminal in raw mode: %v.", err),
 		)
 	}
 	// Restores the terminal once we're done.
@@ -186,7 +188,7 @@ func (c *Open) Execute(
 	cols, rows, err := terminal.GetSize(stdin)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Getsize error: %v", err),
+			errors.Newf("Failed to retrieve the terminal size: %v.", err),
 		)
 	}
 
@@ -196,7 +198,7 @@ func (c *Open) Execute(
 		WindowSize: warp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		return errors.Trace(
-			errors.Newf("Send host update error: %v", err),
+			errors.Newf("Failed to send initial host update: %v.", err),
 		)
 	}
 
@@ -207,12 +209,13 @@ func (c *Open) Execute(
 		for {
 			var st warp.State
 			if err := c.ss.stateR.Decode(&st); err != nil {
-				out.Errof("[Error] State channel decode error: %v\n", err)
+				// Do not print that error as it will be triggered when
+				// disconnecting.
 				break
 			}
 
 			if err := c.ss.state.Update(st, true); err != nil {
-				out.Errof("[Error] State update error: %v\n", err)
+				c.ss.ErrorOut("Failed to apply state update", err)
 				break
 			}
 
@@ -222,7 +225,7 @@ func (c *Open) Execute(
 			default:
 			}
 		}
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Forward window resizes to pty and updateC
@@ -232,15 +235,17 @@ func (c *Open) Execute(
 		for {
 			cols, rows, err := terminal.GetSize(stdin)
 			if err != nil {
-				out.Errof("[Error] Getsize error: %v\n", err)
+				c.ss.ErrorOut("Failed to retrieve the terminal size", err)
 				break
 			}
 			if err := Setsize(c.pty, rows, cols); err != nil {
-				out.Errof("[Error] Setsize error: %v\n", err)
+				c.ss.ErrorOut("Failed to set pty size", err)
 				break
 			}
-			if err := syscall.Kill(c.cmd.Process.Pid, syscall.SIGWINCH); err != nil {
-				out.Errof("[Error] Sigwinch error: %v\n", err)
+			if err := syscall.Kill(
+				c.cmd.Process.Pid, syscall.SIGWINCH,
+			); err != nil {
+				c.ss.ErrorOut("Failed to signal SIGWINCH", err)
 				break
 			}
 
@@ -249,12 +254,12 @@ func (c *Open) Execute(
 				From:       c.session,
 				WindowSize: warp.Size{Rows: rows, Cols: cols},
 			}); err != nil {
-				out.Errof("[Error] Send host update error: %v\n", err)
+				c.ss.ErrorOut("Failed to send host update", err)
 				break
 			}
 			<-ch
 		}
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Multiplex shell to dataC, Stdout
@@ -263,7 +268,7 @@ func (c *Open) Execute(
 			os.Stdout.Write(data)
 			c.ss.dataC.Write(data)
 		}, c.pty)
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Multiplex dataC to pty
@@ -273,7 +278,7 @@ func (c *Open) Execute(
 				c.pty.Write(data)
 			}
 		}, c.ss.dataC)
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	// Multiplex Stdin to pty
@@ -281,7 +286,7 @@ func (c *Open) Execute(
 		plex.Run(ctx, func(data []byte) {
 			c.pty.Write(data)
 		}, os.Stdin)
-		cancel()
+		c.ss.TearDown()
 	}()
 
 	<-ctx.Done()
