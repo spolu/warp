@@ -21,11 +21,13 @@ type Session struct {
 	conn net.Conn
 	mux  *yamux.Session
 
-	dataC   net.Conn
 	stateC  net.Conn
 	stateR  *gob.Decoder
 	updateC net.Conn
 	updateW *gob.Encoder
+	errorC  net.Conn
+	errorR  *gob.Decoder
+	dataC   net.Conn
 
 	state *cli.Warp
 
@@ -63,6 +65,7 @@ func NewSession(
 	// Opens state channel stateC.
 	ss.stateC, err = mux.Open()
 	if err != nil {
+		ss.TearDown()
 		return nil, errors.Trace(
 			errors.Newf("State channel open error: %v", err),
 		)
@@ -72,6 +75,7 @@ func NewSession(
 	// Open update channel updateC.
 	ss.updateC, err = mux.Open()
 	if err != nil {
+		ss.TearDown()
 		return nil, errors.Trace(
 			errors.Newf("Update channel open error: %v", err),
 		)
@@ -86,14 +90,26 @@ func NewSession(
 		Username: ss.username,
 	}
 	if err := ss.updateW.Encode(hello); err != nil {
+		ss.TearDown()
 		return nil, errors.Trace(
 			errors.Newf("Send hello error: %v", err),
 		)
 	}
 
+	// Opens error channel errorC.
+	ss.errorC, err = mux.Open()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Error channel open error: %v", err),
+		)
+	}
+	ss.errorR = gob.NewDecoder(ss.errorC)
+
 	// Open data channel dataC.
 	ss.dataC, err = mux.Open()
 	if err != nil {
+		ss.TearDown()
 		return nil, errors.Trace(
 			errors.Newf("Data channel open error: %v", err),
 		)

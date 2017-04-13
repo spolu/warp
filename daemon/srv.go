@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -108,6 +109,7 @@ func (s *Srv) handleHost(
 ) error {
 	var initial warp.HostUpdate
 	if err := ss.updateR.Decode(&initial); err != nil {
+		ss.SendInternalError(ctx)
 		return errors.Trace(
 			errors.Newf("Initial host update error: %v", err),
 		)
@@ -122,6 +124,13 @@ func (s *Srv) handleHost(
 
 	if ok {
 		s.mutex.Unlock()
+		ss.SendError(ctx,
+			"warp_in_use",
+			fmt.Sprintf(
+				"The warp you attempted to open is already in use: %s.",
+				ss.warp,
+			),
+		)
 		return errors.Trace(
 			errors.Newf("Host error: warp already in use: %s", ss.warp),
 		)
@@ -138,10 +147,7 @@ func (s *Srv) handleHost(
 
 	s.mutex.Unlock()
 
-	err := s.warps[ss.warp].handleHost(ctx, ss)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	s.warps[ss.warp].handleHost(ctx, ss)
 
 	// Clean-up warp.
 	logging.Logf(ctx,
@@ -166,15 +172,19 @@ func (s *Srv) handleShellClient(
 	s.mutex.Unlock()
 
 	if !ok {
+		ss.SendError(ctx,
+			"warp_unknown",
+			fmt.Sprintf(
+				"The warp you attempted to connect does not exist: %s.",
+				ss.warp,
+			),
+		)
 		return errors.Trace(
-			errors.Newf("Client error: unknown warp %s", ss.warp),
+			errors.Newf("Client error: warp unknown %s", ss.warp),
 		)
 	}
 
-	err := s.warps[ss.warp].handleShellClient(ctx, ss)
-	if err != nil {
-		return errors.Trace(err)
-	}
+	s.warps[ss.warp].handleShellClient(ctx, ss)
 
 	return nil
 }

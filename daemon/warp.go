@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/spolu/warp"
@@ -165,21 +164,22 @@ func (w *Warp) rcvHostData(
 		)
 		_, err := s.dataC.Write(data)
 		if err != nil {
-			s.SendError(ctx,
-				"data_send_failed",
-				fmt.Sprintf("Error sending data: %v", err),
-			)
-			// This will disconnect the client and clean it up from the
-			// session
-			s.cancel()
+			// If we fail to write to a session, send an internal error there
+			// and tear down the session. This will not impact the warp.
+			s.SendInternalError(ctx)
+			s.TearDown()
 		}
 	}
 }
 
+// handleHost is responsible for handling the host session. It is in charge of:
+// - receiving and validating host update.
+// - multiplexing host data to shell clients.
+// - sending received (and authorized) data to the host session.
 func (w *Warp) handleHost(
 	ctx context.Context,
 	ss *Session,
-) error {
+) {
 	// Add the host.
 	w.mutex.Lock()
 	w.host = &HostState{
@@ -203,20 +203,19 @@ func (w *Warp) handleHost(
 		for {
 			var st warp.HostUpdate
 			if err := w.host.session.updateR.Decode(&st); err != nil {
-				ss.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf("Host update decoding failed: %v", err),
+				logging.Logf(ctx,
+					"Error receiving host udpate: session=%s error=%v",
+					ss.ToString, err,
 				)
 				break HOSTLOOP
 			}
 
 			// Check that the warp token is the same.
 			if st.Warp != w.token {
-				ss.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf(
-						"Host update warp mismatch: %s", st.Warp,
-					),
+				logging.Logf(ctx,
+					"Host update warp mismatch: session=%s "+
+						"expected=% received=%s",
+					ss.ToString, w.token, st.Warp,
 				)
 				break HOSTLOOP
 			}
@@ -226,11 +225,9 @@ func (w *Warp) handleHost(
 			if st.From.Token != ss.session.Token ||
 				st.From.User != ss.session.User ||
 				st.From.Secret != ss.session.Secret {
-				ss.SendError(ctx,
-					"invalid_host_update",
-					fmt.Sprintf(
-						"Host update host mismatch: %s", st.From.Token,
-					),
+				logging.Logf(ctx,
+					"Host credentials mismatch: session=%s",
+					ss.ToString,
 				)
 				break HOSTLOOP
 			}
@@ -245,6 +242,7 @@ func (w *Warp) handleHost(
 						"Unknown user from host update: session=%s user=%s",
 						ss.ToString(), user,
 					)
+					break HOSTLOOP
 				}
 			}
 			w.mutex.Unlock()
@@ -256,7 +254,8 @@ func (w *Warp) handleHost(
 
 			w.updateClientSessions(ctx)
 		}
-		ss.cancel()
+		ss.SendInternalError(ctx)
+		ss.TearDown()
 	}()
 
 	// Receive host data.
@@ -268,11 +267,8 @@ func (w *Warp) handleHost(
 			)
 			w.rcvHostData(ctx, ss, data)
 		}, ss.dataC)
-		ss.SendError(ctx,
-			"data_receive_failed",
-			"Error receiving terminal output.",
-		)
-		ss.cancel()
+		ss.SendInternalError(ctx)
+		ss.TearDown()
 	}()
 
 	// Send data to host.
@@ -293,11 +289,8 @@ func (w *Warp) handleHost(
 			default:
 			}
 		}
-		ss.SendError(ctx,
-			"data_send_failed",
-			fmt.Sprintf("Error receiving remote input."),
-		)
-		ss.cancel()
+		ss.SendInternalError(ctx)
+		ss.TearDown()
 	}()
 
 	// Update host and clients (should be no client).
@@ -318,16 +311,21 @@ func (w *Warp) handleHost(
 	)
 	sessions := w.CientSessions(ctx)
 	for _, s := range sessions {
-		s.cancel()
+		s.SendError(ctx,
+			"host_disconnected",
+			"The warp host disconnected.",
+		)
+		s.TearDown()
 	}
-
-	return nil
 }
 
+// handleShellClient is responsible for handling the SsTpShellClient sessions.
+// It is in charge of:
+// - receiving shell client data and passing it to the host if authorized.
 func (w *Warp) handleShellClient(
 	ctx context.Context,
 	ss *Session,
-) error {
+) {
 	// Add the client.
 	w.mutex.Lock()
 	isHostSession := false
@@ -364,11 +362,8 @@ func (w *Warp) handleShellClient(
 			)
 			w.rcvShellClientData(ctx, ss, data)
 		}, ss.dataC)
-		ss.SendError(ctx,
-			"data_receive_failed",
-			"Error receiving terminal input",
-		)
-		ss.cancel()
+		ss.SendInternalError(ctx)
+		ss.TearDown()
 	}()
 
 	// Update host and clients (including the new session).
@@ -402,6 +397,4 @@ func (w *Warp) handleShellClient(
 	// Update host and remaining clients
 	w.updateHost(ctx)
 	w.updateClientSessions(ctx)
-
-	return nil
 }

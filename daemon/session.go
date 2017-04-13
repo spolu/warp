@@ -24,13 +24,13 @@ type Session struct {
 	conn net.Conn
 	mux  *yamux.Session
 
-	stateC net.Conn
-	stateW *gob.Encoder
-
+	stateC  net.Conn
+	stateW  *gob.Encoder
 	updateC net.Conn
 	updateR *gob.Decoder
-
-	dataC net.Conn
+	errorC  net.Conn
+	errorW  *gob.Encoder
+	dataC   net.Conn
 
 	ctx    context.Context
 	cancel func()
@@ -94,6 +94,16 @@ func NewSession(
 		ss.ToString(), hello.Warp, hello.Type, hello.Username,
 	)
 
+	// Opens error channel errorC.
+	ss.errorC, err = mux.Accept()
+	if err != nil {
+		ss.TearDown()
+		return nil, errors.Trace(
+			errors.Newf("Error channel open error: %v", err),
+		)
+	}
+	ss.errorW = gob.NewEncoder(ss.errorC)
+
 	// Open data channel dataC.
 	ss.dataC, err = mux.Accept()
 	if err != nil {
@@ -131,5 +141,19 @@ func (ss *Session) SendError(
 	logging.Logf(ctx,
 		"Session error: session=%s code=%s message=%s",
 		ss.ToString(), code, message,
+	)
+}
+
+// SendInternalError sends an internal error to the client which should trigger
+// a disconnection on its end.
+func (ss *Session) SendInternalError(
+	ctx context.Context,
+) {
+	ss.SendError(ctx,
+		"internal_error",
+		fmt.Sprintf(
+			"The warp experienced an internal error (session: %s).",
+			ss.ToString(),
+		),
 	)
 }

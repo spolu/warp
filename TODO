@@ -6,7 +6,8 @@
     [ ] warp ls
     [ ] warp authorize stan
   [ ] TLS
-  [ ] Better PROMPT support for zsh, csh / linux
+  [ ] host reconnection (closes warp for clients but reopens automatically)
+  [ ] better PROMPT support for zsh, csh / linux
   [x] factor session creation / remove hostC
   [x] rename Client/Session
   [x] rename warp/warp Session/Warp
