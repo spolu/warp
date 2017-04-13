@@ -1,9 +1,13 @@
 #  v0.1
 
   [ ] in-warp commands
-    [ ] local unix socket that is a command channel > updateC
-    [ ] warp ls
+    [ ] set env _CURRENT_WARP=
+    [ ] set env _CURRENT_WARP_COMMAND_NAMED_SOCKET=
+    [ ] local unix socket that is a commandC channel > updateC
+    [ ] warp state
     [ ] warp authorize stan
+    [ ] warp revoke stan
+    [ ] warp revoke
   [ ] TLS
   [ ] host reconnection (closes warp for clients but reopens automatically)
   [ ] better PROMPT support for zsh, csh / linux

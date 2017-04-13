@@ -181,7 +181,10 @@ func (c *Connect) Execute(
 	go func() {
 		var e warp.Error
 		if err := c.ss.errorR.Decode(&e); err == nil {
-			c.ss.ErrorOut(e.Code, errors.Newf(e.Message))
+			c.ss.ErrorOut(
+				fmt.Sprintf("Received %s", e.Code),
+				errors.Newf(e.Message),
+			)
 		}
 		c.ss.TearDown()
 	}()
