@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
 	"net"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/errors"
@@ -30,19 +28,12 @@ func init() {
 
 // Connect spawns a new shared terminal.
 type Connect struct {
-	address string
-	warp    string
-	session warp.Session
-
+	address  string
+	warp     string
+	session  warp.Session
 	username string
 
-	dataC   net.Conn
-	stateC  net.Conn
-	stateR  *gob.Decoder
-	updateC net.Conn
-	updateW *gob.Encoder
-
-	state *cli.Warp
+	ss *Session
 }
 
 // NewConnect constructs and initializes the command.
@@ -124,53 +115,14 @@ func (c *Connect) Execute(
 		)
 	}
 
-	mux, err := yamux.Client(conn, nil)
+	c.ss, err = NewSession(
+		ctx, c.session, c.warp, warp.SsTpShellClient, c.username, cancel, conn,
+	)
 	if err != nil {
-		return errors.Trace(
-			errors.Newf("Session error: %v", err),
-		)
+		return errors.Trace(err)
 	}
-	// Closes stateC, updateC, dataC, mux and conn.
-	defer mux.Close()
-
-	// Opens state channel stateC.
-	c.stateC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("State channel open error: %v", err),
-		)
-	}
-	c.stateR = gob.NewDecoder(c.stateC)
-
-	// Open update channel updateC.
-	c.updateC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Update channel open error: %v", err),
-		)
-	}
-	c.updateW = gob.NewEncoder(c.updateC)
-
-	// Send initial SessionHello.
-	hello := warp.SessionHello{
-		Warp:     c.warp,
-		From:     c.session,
-		Type:     warp.SsTpShellClient,
-		Username: c.username,
-	}
-	if err := c.updateW.Encode(hello); err != nil {
-		return errors.Trace(
-			errors.Newf("Send hello error: %v", err),
-		)
-	}
-
-	// Open data channel dataC.
-	c.dataC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Data channel open error: %v", err),
-		)
-	}
+	// Close and reclaims all session related state.
+	defer c.ss.TearDown()
 
 	out.Normf("\n")
 	out.Normf("Connected to warp: ")
@@ -193,21 +145,18 @@ func (c *Connect) Execute(
 	// Restors the terminal once we're done.
 	defer terminal.Restore(stdin, old)
 
-	// Setup warp state.
-	c.state = cli.NewWarp(hello)
-
 	// Main loops.
 
 	// Listen for state updates.
 	go func() {
 		for {
 			var st warp.State
-			if err := c.stateR.Decode(&st); err != nil {
+			if err := c.ss.stateR.Decode(&st); err != nil {
 				out.Errof("[Error] State channel decode error: %v\n", err)
 				break
 			}
 
-			if err := c.state.Update(st, false); err != nil {
+			if err := c.ss.state.Update(st, false); err != nil {
 				out.Errof("[Error] State update error: %v\n", err)
 				break
 			}
@@ -227,7 +176,7 @@ func (c *Connect) Execute(
 	// Multiplex Stdin to dataC.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			c.dataC.Write(data)
+			c.ss.dataC.Write(data)
 		}, os.Stdin)
 		cancel()
 	}()
@@ -236,7 +185,7 @@ func (c *Connect) Execute(
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
-		}, c.dataC)
+		}, c.ss.dataC)
 		cancel()
 	}()
 

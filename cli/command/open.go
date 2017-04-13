@@ -2,9 +2,7 @@ package command
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -15,7 +13,6 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/hashicorp/yamux"
 	"github.com/kr/pty"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/cli"
@@ -38,22 +35,14 @@ func init() {
 type Open struct {
 	shell string
 
-	address string
-	warp    string
-	session warp.Session
-
+	address  string
+	warp     string
+	session  warp.Session
 	username string
 
 	cmd *exec.Cmd
 	pty *os.File
-
-	dataC   net.Conn
-	stateC  net.Conn
-	stateR  *gob.Decoder
-	updateC net.Conn
-	updateW *gob.Encoder
-
-	state *cli.Warp
+	ss  *Session
 }
 
 // NewOpen constructs and initializes the command.
@@ -151,14 +140,14 @@ func (c *Open) Execute(
 		)
 	}
 
-	mux, err := yamux.Client(conn, nil)
+	c.ss, err = NewSession(
+		ctx, c.session, c.warp, warp.SsTpHost, c.username, cancel, conn,
+	)
 	if err != nil {
-		return errors.Trace(
-			errors.Newf("Session error: %v", err),
-		)
+		return errors.Trace(err)
 	}
-	// Closes stateC, updateC, dataC, mux and conn.
-	defer mux.Close()
+	// Close and reclaims all session related state.
+	defer c.ss.TearDown()
 
 	// Setup pty
 	c.cmd = exec.Command(c.shell)
@@ -176,45 +165,6 @@ func (c *Open) Execute(
 	}()
 	// Closes the newly created pty.
 	defer c.pty.Close()
-
-	// Opens state channel stateC.
-	c.stateC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("State channel open error: %v", err),
-		)
-	}
-	c.stateR = gob.NewDecoder(c.stateC)
-
-	// Open update channel updateC.
-	c.updateC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Update channel open error: %v", err),
-		)
-	}
-	c.updateW = gob.NewEncoder(c.updateC)
-
-	// Send initial SessionHello.
-	hello := warp.SessionHello{
-		Warp:     c.warp,
-		From:     c.session,
-		Type:     warp.SsTpHost,
-		Username: c.username,
-	}
-	if err := c.updateW.Encode(hello); err != nil {
-		return errors.Trace(
-			errors.Newf("Send hello error: %v", err),
-		)
-	}
-
-	// Open data channel dataC.
-	c.dataC, err = mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Data channel open error: %v", err),
-		)
-	}
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -240,7 +190,7 @@ func (c *Open) Execute(
 		)
 	}
 
-	if err := c.updateW.Encode(warp.HostUpdate{
+	if err := c.ss.updateW.Encode(warp.HostUpdate{
 		Warp:       c.warp,
 		From:       c.session,
 		WindowSize: warp.Size{Rows: rows, Cols: cols},
@@ -250,21 +200,18 @@ func (c *Open) Execute(
 		)
 	}
 
-	// Setup warp state.
-	c.state = cli.NewWarp(hello)
-
 	// Main loops.
 
 	// Listen for state updates.
 	go func() {
 		for {
 			var st warp.State
-			if err := c.stateR.Decode(&st); err != nil {
+			if err := c.ss.stateR.Decode(&st); err != nil {
 				out.Errof("[Error] State channel decode error: %v\n", err)
 				break
 			}
 
-			if err := c.state.Update(st, true); err != nil {
+			if err := c.ss.state.Update(st, true); err != nil {
 				out.Errof("[Error] State update error: %v\n", err)
 				break
 			}
@@ -297,7 +244,7 @@ func (c *Open) Execute(
 				break
 			}
 
-			if err := c.updateW.Encode(warp.HostUpdate{
+			if err := c.ss.updateW.Encode(warp.HostUpdate{
 				Warp:       c.warp,
 				From:       c.session,
 				WindowSize: warp.Size{Rows: rows, Cols: cols},
@@ -313,9 +260,8 @@ func (c *Open) Execute(
 	// Multiplex shell to dataC, Stdout
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			for _, d := range []io.Writer{c.dataC, os.Stdout} {
-				d.Write(data)
-			}
+			os.Stdout.Write(data)
+			c.ss.dataC.Write(data)
 		}, c.pty)
 		cancel()
 	}()
@@ -323,10 +269,10 @@ func (c *Open) Execute(
 	// Multiplex dataC to pty
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			if c.state.HostCanReceiveWrite() {
+			if c.ss.state.HostCanReceiveWrite() {
 				c.pty.Write(data)
 			}
-		}, c.dataC)
+		}, c.ss.dataC)
 		cancel()
 	}()
 
