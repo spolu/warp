@@ -42,7 +42,7 @@ type Open struct {
 
 	cmd *exec.Cmd
 	pty *os.File
-	ss  *Session
+	ss  *cli.Session
 }
 
 // NewOpen constructs and initializes the command.
@@ -85,6 +85,12 @@ func (c *Open) Parse(
 		c.warp = token.RandStr()
 	} else {
 		c.warp = args[0]
+	}
+
+	if !cli.WarpRegexp.MatchString(c.warp) {
+		return errors.Trace(
+			errors.Newf("Malformed warp ID: %s", c.warp),
+		)
 	}
 
 	c.address = warp.DefaultAddress
@@ -136,7 +142,7 @@ func (c *Open) Execute(
 		)
 	}
 
-	c.ss, err = NewSession(
+	c.ss, err = cli.NewSession(
 		ctx, c.session, c.warp, warp.SsTpHost, c.username, cancel, conn,
 	)
 	if err != nil {
@@ -147,8 +153,7 @@ func (c *Open) Execute(
 
 	// Listen for errors.
 	go func() {
-		var e warp.Error
-		if err := c.ss.errorR.Decode(&e); err == nil {
+		if e, err := c.ss.DecodeError(ctx); err == nil {
 			c.ss.ErrorOut(
 				fmt.Sprintf("Received %s", e.Code),
 				errors.Newf(e.Message),
@@ -173,7 +178,7 @@ func (c *Open) Execute(
 		)
 	}
 
-	if err := c.ss.updateW.Encode(warp.HostUpdate{
+	if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
 		Warp:       c.warp,
 		From:       c.session,
 		WindowSize: warp.Size{Rows: rows, Cols: cols},
@@ -184,16 +189,16 @@ func (c *Open) Execute(
 	}
 
 	// Wait for a first state update from warpd.
-	var st warp.State
-	if err := c.ss.stateR.Decode(&st); err != nil {
+	if st, err := c.ss.DecodeState(ctx); err != nil {
 		// Let's not print any error here as we should have received an error
 		// from the server.
 		return nil
-	}
-	if err := c.ss.state.Update(st, true); err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to apply initial state update: %v.", err),
-		)
+	} else {
+		if err := c.ss.State().Update(*st, true); err != nil {
+			return errors.Trace(
+				errors.Newf("Failed to apply initial state update: %v.", err),
+			)
+		}
 	}
 
 	out.Normf("Opened warp: ")
@@ -223,9 +228,7 @@ func (c *Open) Execute(
 		)
 	}
 	go func() {
-		if err := c.cmd.Wait(); err != nil {
-			//c.ss.ErrorOut("Shell execution failed", err)
-		}
+		c.cmd.Wait()
 		c.ss.TearDown()
 	}()
 
@@ -237,16 +240,15 @@ func (c *Open) Execute(
 	// Listen for state updates.
 	go func() {
 		for {
-			var st warp.State
-			if err := c.ss.stateR.Decode(&st); err != nil {
+			if st, err := c.ss.DecodeState(ctx); err != nil {
 				// Do not print that error as it will be triggered when
 				// disconnecting.
 				break
-			}
-
-			if err := c.ss.state.Update(st, true); err != nil {
-				c.ss.ErrorOut("Failed to apply state update", err)
-				break
+			} else {
+				if err := c.ss.State().Update(*st, true); err != nil {
+					c.ss.ErrorOut("Failed to apply state update", err)
+					break
+				}
 			}
 
 			select {
@@ -263,7 +265,7 @@ func (c *Open) Execute(
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
 		for {
-			if c.ss.tornDown {
+			if c.ss.TornDown() {
 				break
 			}
 			cols, rows, err := terminal.GetSize(stdin)
@@ -300,7 +302,7 @@ func (c *Open) Execute(
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
-			c.ss.dataC.Write(data)
+			c.ss.DataC().Write(data)
 		}, c.pty)
 		c.ss.TearDown()
 	}()
@@ -308,10 +310,10 @@ func (c *Open) Execute(
 	// Multiplex dataC to pty
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			if c.ss.state.HostCanReceiveWrite() {
+			if c.ss.State().HostCanReceiveWrite() {
 				c.pty.Write(data)
 			}
-		}, c.ss.dataC)
+		}, c.ss.DataC())
 		c.ss.TearDown()
 	}()
 

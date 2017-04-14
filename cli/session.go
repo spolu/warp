@@ -1,4 +1,4 @@
-package command
+package cli
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
-	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/errors"
 	"github.com/spolu/warp/lib/out"
 )
@@ -32,12 +31,29 @@ type Session struct {
 	errorR  *gob.Decoder
 	dataC   net.Conn
 
-	state *cli.Warp
+	state *Warp
 
 	tornDown bool
 	cancel   func()
 
 	mutex *sync.Mutex
+}
+
+// State returns the session warp state.
+func (ss *Session) State() *Warp {
+	return ss.state
+}
+
+// DataC returns the session data channel.
+func (ss *Session) DataC() net.Conn {
+	return ss.dataC
+}
+
+// TornDown returns the session tornDown value.
+func (ss *Session) TornDown() bool {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.tornDown
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -123,7 +139,7 @@ func NewSession(
 	}
 
 	// Setup warp state.
-	ss.state = cli.NewWarp(hello)
+	ss.state = NewWarp(hello)
 
 	return ss, nil
 }
@@ -152,7 +168,7 @@ func (ss *Session) ErrorOut(
 		// execute.
 		time.Sleep(50 * time.Millisecond)
 		out.Errof(
-			"[Error] %s: %v\n",
+			"\n[Error] %s: %v\n",
 			message, err,
 		)
 	}()
@@ -169,4 +185,28 @@ func (ss *Session) SendHostUpdate(
 		return errors.Trace(err)
 	}
 	return nil
+}
+
+// DecodeError attempts to decode an error from the errorC. This method is not
+// thread-safe.
+func (ss *Session) DecodeError(
+	ctx context.Context,
+) (*warp.Error, error) {
+	var e warp.Error
+	if err := ss.errorR.Decode(&e); err != nil {
+		return nil, errors.Trace(err)
+	}
+	return &e, nil
+}
+
+// DecodeState attempts to decode state from the sateC. This method is not
+// thread-safe.
+func (ss *Session) DecodeState(
+	ctx context.Context,
+) (*warp.State, error) {
+	var st warp.State
+	if err := ss.stateR.Decode(&st); err != nil {
+		return nil, errors.Trace(err)
+	}
+	return &st, nil
 }

@@ -1,19 +1,16 @@
 package cli
 
 import (
+	"context"
+	"regexp"
 	"sync"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/errors"
 )
 
-// UserState represents the state of a user as seen client-side.
-type UserState struct {
-	token    string
-	username string
-	mode     warp.Mode
-	hosting  bool
-}
+// WarpRegexp warp token regular expression.
+var WarpRegexp = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,255}$")
 
 // Warp repreents the state of a warp client side.
 type Warp struct {
@@ -23,6 +20,26 @@ type Warp struct {
 	users      map[string]UserState
 
 	mutex *sync.Mutex
+}
+
+// UserState represents the state of a user as seen client-side.
+type UserState struct {
+	token    string
+	username string
+	mode     warp.Mode
+	hosting  bool
+}
+
+// User returns a warp.User from the current UserState.
+func (u *UserState) User(
+	ctx context.Context,
+) warp.User {
+	return warp.User{
+		Token:    u.token,
+		Username: u.username,
+		Mode:     u.mode,
+		Hosting:  u.hosting,
+	}
 }
 
 // Returns a new empty wrap state.
@@ -159,4 +176,24 @@ func (w *Warp) HostCanReceiveWrite() bool {
 		}
 	}
 	return can
+}
+
+// State computes a warp.State from the current warp. It acquires the warp
+// lock.
+func (w *Warp) State(
+	ctx context.Context,
+) warp.State {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	state := warp.State{
+		Warp:       w.token,
+		WindowSize: w.windowSize,
+		Users:      map[string]warp.User{},
+	}
+
+	for token, user := range w.users {
+		state.Users[token] = user.User(ctx)
+	}
+
+	return state
 }

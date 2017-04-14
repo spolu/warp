@@ -1,5 +1,9 @@
 package warp
 
+//
+// Remote Warpd Protocol
+//
+
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"
 
@@ -80,4 +84,37 @@ type HostUpdate struct {
 	WindowSize Size
 	// Modes is a map from user token to mode.
 	Modes map[string]Mode
+}
+
+//
+// Local Command Server Protocol
+//
+
+// CommandType encodes the type of the session:
+type CommandType string
+
+const (
+	// CmdTpState retrieve the state of the warp.
+	CmdTpState CommandType = "state"
+	// CmdTpAuthorize authorizes a user for writing.
+	CmdTpAuthorize CommandType = "authorize"
+	// CmdTpRevoke a (or all) user(s) authorization to write.
+	CmdTpRevoke CommandType = "revoke"
+)
+
+// Command is used to send command to the local host.
+type Command struct {
+	Type CommandType
+	Args []string
+}
+
+// CommandResult is used to send command result to the local client.
+type CommandResult struct {
+	Type  CommandType
+	State State
+	Error struct {
+		Code    string
+		Message string
+	}
+	Result map[string]string
 }

@@ -63,7 +63,7 @@ func (h *HostState) User(
 	}
 }
 
-// State computes a warp.State from the current session. It acquires the session
+// State computes a warp.State from the current warp. It acquires the warp
 // lock.
 func (w *Warp) State(
 	ctx context.Context,

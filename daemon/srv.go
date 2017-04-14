@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 
@@ -36,10 +35,9 @@ func NewSrv(
 func (s *Srv) Run(
 	ctx context.Context,
 ) error {
-
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Trace(err)
 	}
 	logging.Logf(ctx, "Listening: address=%s", s.address)
 

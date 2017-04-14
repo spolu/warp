@@ -33,7 +33,7 @@ type Connect struct {
 	session  warp.Session
 	username string
 
-	ss *Session
+	ss *cli.Session
 }
 
 // NewConnect constructs and initializes the command.
@@ -80,6 +80,12 @@ func (c *Connect) Parse(
 		c.warp = args[0]
 	}
 
+	if !cli.WarpRegexp.MatchString(c.warp) {
+		return errors.Trace(
+			errors.Newf("Malformed warp ID: %s", c.warp),
+		)
+	}
+
 	c.address = warp.DefaultAddress
 	if os.Getenv("WARPD_ADDRESS") != "" {
 		c.address = os.Getenv("WARPD_ADDRESS")
@@ -115,7 +121,7 @@ func (c *Connect) Execute(
 		)
 	}
 
-	c.ss, err = NewSession(
+	c.ss, err = cli.NewSession(
 		ctx,
 		c.session,
 		c.warp,
@@ -155,17 +161,15 @@ func (c *Connect) Execute(
 	// Listen for state updates.
 	go func() {
 		for {
-			var st warp.State
-			if err := c.ss.stateR.Decode(&st); err != nil {
+			if st, err := c.ss.DecodeState(ctx); err != nil {
 				break
+			} else {
+				if err := c.ss.State().Update(*st, false); err != nil {
+					break
+				}
+				// Update the terminal size.
+				fmt.Printf("\033[8;%d;%dt", st.WindowSize.Rows, st.WindowSize.Cols)
 			}
-
-			if err := c.ss.state.Update(st, false); err != nil {
-				break
-			}
-
-			// Update the terminal size.
-			fmt.Printf("\033[8;%d;%dt", st.WindowSize.Rows, st.WindowSize.Cols)
 
 			select {
 			case <-ctx.Done():
@@ -178,8 +182,7 @@ func (c *Connect) Execute(
 
 	// Listen for errors.
 	go func() {
-		var e warp.Error
-		if err := c.ss.errorR.Decode(&e); err == nil {
+		if e, err := c.ss.DecodeError(ctx); err == nil {
 			c.ss.ErrorOut(
 				fmt.Sprintf("Received %s", e.Code),
 				errors.Newf(e.Message),
@@ -191,7 +194,7 @@ func (c *Connect) Execute(
 	// Multiplex Stdin to dataC.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			c.ss.dataC.Write(data)
+			c.ss.DataC().Write(data)
 		}, os.Stdin)
 		c.ss.TearDown()
 	}()
@@ -200,7 +203,7 @@ func (c *Connect) Execute(
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
-		}, c.ss.dataC)
+		}, c.ss.DataC())
 		c.ss.TearDown()
 	}()
 
