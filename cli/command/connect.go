@@ -130,10 +130,8 @@ func (c *Connect) Execute(
 	// Close and reclaims all session related state.
 	defer c.ss.TearDown()
 
-	out.Normf("\n")
 	out.Normf("Connected to warp: ")
 	out.Boldf("%s\n", c.warp)
-	out.Normf("\n")
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -142,6 +140,7 @@ func (c *Connect) Execute(
 			errors.Newf("Not running in a terminal."),
 		)
 	}
+
 	old, err := terminal.MakeRaw(stdin)
 	if err != nil {
 		return errors.Trace(

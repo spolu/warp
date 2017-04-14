@@ -129,11 +129,6 @@ func (c *Open) Execute(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	out.Normf("\n")
-	out.Normf("Opened warp: ")
-	out.Boldf("%s\n", c.warp)
-	out.Normf("\n")
-
 	conn, err := net.Dial("tcp", c.address)
 	if err != nil {
 		return errors.Trace(
@@ -150,23 +145,17 @@ func (c *Open) Execute(
 	// Close and reclaims all session related state.
 	defer c.ss.TearDown()
 
-	// Setup pty
-	c.cmd = exec.Command(c.shell)
-	c.pty, err = pty.Start(c.cmd)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to create pty: %v.", err),
-		)
-	}
+	// Listen for errors.
 	go func() {
-		if err := c.cmd.Wait(); err != nil {
-			c.ss.ErrorOut("Shell execution failed", err)
+		var e warp.Error
+		if err := c.ss.errorR.Decode(&e); err == nil {
+			c.ss.ErrorOut(
+				fmt.Sprintf("Received %s", e.Code),
+				errors.Newf(e.Message),
+			)
 		}
 		c.ss.TearDown()
 	}()
-
-	// Closes the newly created pty.
-	defer c.pty.Close()
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -175,14 +164,6 @@ func (c *Open) Execute(
 			errors.Newf("Not running in a terminal."),
 		)
 	}
-	old, err := terminal.MakeRaw(stdin)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Unable to put terminal in raw mode: %v.", err),
-		)
-	}
-	// Restores the terminal once we're done.
-	defer terminal.Restore(stdin, old)
 
 	// Send initial host update.
 	cols, rows, err := terminal.GetSize(stdin)
@@ -201,6 +182,55 @@ func (c *Open) Execute(
 			errors.Newf("Failed to send initial host update: %v.", err),
 		)
 	}
+
+	// Wait for a first state update from warpd.
+	var st warp.State
+	if err := c.ss.stateR.Decode(&st); err != nil {
+		// Let's not print any error here as we should have received an error
+		// from the server.
+		return nil
+	}
+	if err := c.ss.state.Update(st, true); err != nil {
+		return errors.Trace(
+			errors.Newf("Failed to apply initial state update: %v.", err),
+		)
+	}
+
+	out.Normf("Opened warp: ")
+	out.Boldf("%s\n", c.warp)
+
+	old, err := terminal.MakeRaw(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Unable to put terminal in raw mode: %v.", err),
+		)
+	}
+	// Restores the terminal once we're done.
+	defer terminal.Restore(stdin, old)
+
+	// Start shell.
+	c.cmd = exec.Command(c.shell)
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("_WARP=%s", c.warp))
+	c.cmd.Env = env
+
+	// Setup pty.
+	c.pty, err = pty.Start(c.cmd)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Failed to create pty: %v.", err),
+		)
+	}
+	go func() {
+		if err := c.cmd.Wait(); err != nil {
+			//c.ss.ErrorOut("Shell execution failed", err)
+		}
+		c.ss.TearDown()
+	}()
+
+	// Closes the newly created pty.
+	defer c.pty.Close()
 
 	// Main loops.
 
@@ -233,6 +263,9 @@ func (c *Open) Execute(
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
 		for {
+			if c.ss.tornDown {
+				break
+			}
 			cols, rows, err := terminal.GetSize(stdin)
 			if err != nil {
 				c.ss.ErrorOut("Failed to retrieve the terminal size", err)

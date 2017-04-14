@@ -33,7 +33,8 @@ type Session struct {
 
 	state *cli.Warp
 
-	cancel func()
+	tornDown bool
+	cancel   func()
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -125,9 +126,12 @@ func NewSession(
 
 // TearDown tears down a session, closing and reclaiming channels.
 func (ss *Session) TearDown() {
-	// Closes stateC, updateC, errorC, dataC, mux and conn.
-	ss.mux.Close()
-	ss.cancel()
+	if !ss.tornDown {
+		ss.tornDown = true
+		ss.cancel()
+		// Closes stateC, updateC, errorC, dataC, mux and conn.
+		ss.mux.Close()
+	}
 }
 
 // ErrorOut is used to print an error with a slight delay to let the terminal
@@ -142,7 +146,7 @@ func (ss *Session) ErrorOut(
 		// execute.
 		time.Sleep(50 * time.Millisecond)
 		out.Errof(
-			"[Error] %s: %v.\n",
+			"[Error] %s: %v\n",
 			message, err,
 		)
 	}()
