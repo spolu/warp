@@ -282,7 +282,7 @@ func (c *Open) Execute(
 				break
 			}
 
-			if err := c.ss.updateW.Encode(warp.HostUpdate{
+			if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
 				Warp:       c.warp,
 				From:       c.session,
 				WindowSize: warp.Size{Rows: rows, Cols: cols},
@@ -290,6 +290,7 @@ func (c *Open) Execute(
 				c.ss.ErrorOut("Failed to send host update", err)
 				break
 			}
+
 			<-ch
 		}
 		c.ss.TearDown()

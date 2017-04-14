@@ -9,7 +9,8 @@
     [ ] warp revoke stan
     [ ] warp revoke
   [ ] TLS
-  [ ] host reconnection (closes warp for clients but reopens automatically)
+  [ ] protect warpd sessions with mutex (mostly teardown)
+  [ ] gradceful host reconnection (closes warp for clients but auto reconnects)
   [ ] better PROMPT support for zsh, csh / linux
   [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC

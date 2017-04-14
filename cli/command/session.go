@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/gob"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -35,6 +36,8 @@ type Session struct {
 
 	tornDown bool
 	cancel   func()
+
+	mutex *sync.Mutex
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -63,6 +66,7 @@ func NewSession(
 		conn:        conn,
 		mux:         mux,
 		cancel:      cancel,
+		mutex:       &sync.Mutex{},
 	}
 
 	// Opens state channel stateC.
@@ -126,6 +130,8 @@ func NewSession(
 
 // TearDown tears down a session, closing and reclaiming channels.
 func (ss *Session) TearDown() {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
 	if !ss.tornDown {
 		ss.tornDown = true
 		ss.cancel()
@@ -150,4 +156,17 @@ func (ss *Session) ErrorOut(
 			message, err,
 		)
 	}()
+}
+
+// SendHostUpdate is used to safely concurrently sending host updates.
+func (ss *Session) SendHostUpdate(
+	ctx context.Context,
+	update warp.HostUpdate,
+) error {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	if err := ss.updateW.Encode(update); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
