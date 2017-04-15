@@ -2,8 +2,12 @@ package command
 
 import (
 	"context"
+	"os"
 
+	"github.com/spolu/warp"
 	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/logging"
 	"github.com/spolu/warp/lib/out"
 )
 
@@ -37,8 +41,8 @@ func (c *State) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp state\n")
 	out.Normf("\n")
-	out.Normf("  Displays the state of the current warp. This command can only be run\n")
-	out.Normf("  from inside a running warp.\n")
+	out.Normf("  Displays the state of the current warp. This command is only available\n")
+	out.Normf("  from inside a warp.\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
 	out.Valuf("  warp state\n")
@@ -50,7 +54,12 @@ func (c *State) Parse(
 	ctx context.Context,
 	args []string,
 ) error {
-	// TOOD: check env
+	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
+		return errors.Trace(
+			errors.Newf("This command is only available from inside a warp."),
+		)
+	}
+
 	return nil
 }
 
@@ -58,5 +67,18 @@ func (c *State) Parse(
 func (c *State) Execute(
 	ctx context.Context,
 ) error {
+
+	result, err := cli.RunLocalCommand(ctx, warp.Command{
+		Type: warp.CmdTpState,
+		Args: []string{},
+	})
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Failed to execute warp command: %v.", err),
+		)
+	}
+
+	logging.Logf(ctx, "RESULT: %+v", result)
+
 	return nil
 }

@@ -70,7 +70,7 @@ func NewSession(
 	mux, err := yamux.Client(conn, nil)
 	if err != nil {
 		return nil, errors.Trace(
-			errors.Newf("Session error: %v", err),
+			errors.Newf("Failed to open session to warpd: %v", err),
 		)
 	}
 
