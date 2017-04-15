@@ -16,8 +16,14 @@ import (
 
 type Srv struct {
 	host *Session
+	path string
 
 	mutex *sync.Mutex
+}
+
+// Path returns the unix socket path.
+func (s *Srv) Path() string {
+	return s.path
 }
 
 // NewSrv constructs a Srv ready to start serving local requests.
@@ -26,7 +32,11 @@ func NewSrv(
 	host *Session,
 ) *Srv {
 	return &Srv{
-		host:  host,
+		host: host,
+		path: path.Join(
+			os.TempDir(),
+			fmt.Sprintf("_warp_%s.sock", host.State().token),
+		),
 		mutex: &sync.Mutex{},
 	}
 }
@@ -35,13 +45,8 @@ func NewSrv(
 func (s *Srv) Run(
 	ctx context.Context,
 ) error {
-	ln, err := net.Listen(
-		"unix",
-		path.Join(
-			os.TempDir(),
-			fmt.Sprintf("_warp_%s.sock", s.host.State().token),
-		),
-	)
+	ln, err := net.Listen("unix", s.path)
+
 	if err != nil {
 		return errors.Trace(err)
 	}

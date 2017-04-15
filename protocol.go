@@ -90,6 +90,12 @@ type HostUpdate struct {
 // Local Command Server Protocol
 //
 
+// EnvWarp the env variable where the warp token is stored.
+var EnvWarp = "__WARP"
+
+// EnvWarpUnixSocket the env variable where warp unix socket path is stored.
+var EnvWarpUnixSocket = "__WARP_UNIX_SOCKET"
+
 // CommandType encodes the type of the session:
 type CommandType string
 

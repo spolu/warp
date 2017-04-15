@@ -43,6 +43,7 @@ type Open struct {
 	cmd *exec.Cmd
 	pty *os.File
 	ss  *cli.Session
+	srv *cli.Srv
 }
 
 // NewOpen constructs and initializes the command.
@@ -151,6 +152,9 @@ func (c *Open) Execute(
 	// Close and reclaims all session related state.
 	defer c.ss.TearDown()
 
+	// Build the local command server.
+	c.srv = cli.NewSrv(ctx, c.ss)
+
 	// Listen for errors.
 	go func() {
 		if e, err := c.ss.DecodeError(ctx); err == nil {
@@ -216,8 +220,14 @@ func (c *Open) Execute(
 	// Start shell.
 	c.cmd = exec.Command(c.shell)
 
+	// Set the warp env variables for the shell.
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("_WARP=%s", c.warp))
+	env = append(
+		env, fmt.Sprintf("%s=%s", warp.EnvWarp, c.warp),
+	)
+	env = append(
+		env, fmt.Sprintf("%s=%s", warp.EnvWarpUnixSocket, c.srv.Path()),
+	)
 	c.cmd.Env = env
 
 	// Setup pty.
@@ -260,7 +270,7 @@ func (c *Open) Execute(
 		c.ss.TearDown()
 	}()
 
-	// Forward window resizes to pty and updateC
+	// Forward window resizes to pty and updateC.
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
@@ -298,7 +308,7 @@ func (c *Open) Execute(
 		c.ss.TearDown()
 	}()
 
-	// Multiplex shell to dataC, Stdout
+	// Multiplex shell to dataC, Stdout.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
@@ -307,7 +317,7 @@ func (c *Open) Execute(
 		c.ss.TearDown()
 	}()
 
-	// Multiplex dataC to pty
+	// Multiplex dataC to pty.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			if c.ss.State().HostCanReceiveWrite() {
@@ -317,12 +327,17 @@ func (c *Open) Execute(
 		c.ss.TearDown()
 	}()
 
-	// Multiplex Stdin to pty
+	// Multiplex Stdin to pty.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			c.pty.Write(data)
 		}, os.Stdin)
 		c.ss.TearDown()
+	}()
+
+	// Launch the local command server.
+	go func() {
+		c.srv.Run(ctx)
 	}()
 
 	<-ctx.Done()

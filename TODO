@@ -1,9 +1,9 @@
 #  v0.1
 
   [ ] in-warp commands
-    [ ] set env __WARP=
-    [ ] set env __WARP_NAMED_SOCKET=
-    [ ] local unix socket that is a commandC channel > updateC
+    [x] set env __WARP=
+    [x] set env __WARP_UNIX_SOCKET=
+    [x] local unix socket that is a commandC channel > updateC
     [ ] warp state
     [ ] warp authorize stan
     [ ] warp revoke stan
