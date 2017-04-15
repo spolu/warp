@@ -26,7 +26,7 @@ func init() {
 	cli.Registrar[CmdNmConnect] = NewConnect
 }
 
-// Connect spawns a new shared terminal.
+// Connect connects to a shared terminal.
 type Connect struct {
 	address  string
 	warp     string
