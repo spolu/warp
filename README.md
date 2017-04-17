@@ -1,4 +1,4 @@
-`warp` lets you instantly share your terminal directly from your machine.
+*`warp` lets you instantly share your terminal directly from your machine.*
 
 Instantly start sharing your terminal (read-only) under warp **goofy-dev**
 with:
