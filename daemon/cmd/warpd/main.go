@@ -5,8 +5,10 @@ import (
 	"flag"
 	"log"
 
+	"github.com/spolu/warp"
 	"github.com/spolu/warp/daemon"
 	"github.com/spolu/warp/lib/errors"
+	"github.com/spolu/warp/lib/logging"
 )
 
 var lstFlag string
@@ -31,6 +33,8 @@ func main() {
 		ctx,
 		lstFlag,
 	)
+
+	logging.Logf(ctx, "Started warpd: version=%s", warp.Version)
 
 	err := srv.Run(ctx)
 	if err != nil {

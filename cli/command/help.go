@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 
+	"github.com/spolu/warp"
 	"github.com/spolu/warp/cli"
 	"github.com/spolu/warp/lib/out"
 )
@@ -38,7 +39,9 @@ func (c *Help) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp <command> [<args> ...]\n")
 	out.Normf("\n")
-	out.Normf("  Terminal sharing directly from localhost.\n")
+	out.Normf("  Instant terminal sharing directly from your machine (")
+	out.Boldf("v%s", warp.Version)
+	out.Normf(").\n")
 	out.Normf("\n")
 	out.Normf("Commands:\n")
 

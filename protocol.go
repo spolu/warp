@@ -4,6 +4,9 @@ package warp
 // Remote Warpd Protocol
 //
 
+// Version is the current warp version.
+var Version = "0.0.1"
+
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"
 
