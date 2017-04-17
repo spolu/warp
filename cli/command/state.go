@@ -41,7 +41,7 @@ func (c *State) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp state\n")
 	out.Normf("\n")
-	out.Normf("  Displays the state of the current warp. This command is only available\n")
+	out.Normf("  Displays the state of the current warp, including the list of connected users and their authorization. This command is only available\n")
 	out.Normf("  from inside a warp.\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
