@@ -31,7 +31,7 @@ go get -u github.com/spolu/warp/cli/cmd/warp
 # Roadmap
 
   - *v0.1.0 "metal"*
-    - see [TOOD](TODO)
+    - see [TODO](TODO)
   - *v0.1.1 "chat"*
     - `warp chat :warp` lets you voice-over a warp
   - *future*
