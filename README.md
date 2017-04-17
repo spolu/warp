@@ -43,6 +43,7 @@ server are established over TLS, protecting you from man in the middle attacks.
   - terminal emulation
     - full redraw on connection
     - top status bar
+  - warp signin and verified usernames
 
 # Notes
 
