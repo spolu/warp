@@ -58,6 +58,11 @@ func (c *Help) Help(
 	out.Valuf("    warp connect goofy-dev\n")
 	out.Valuf("    warp connect DJc3hR0PoyFmQIIY\n")
 	out.Normf("\n")
+	out.Normf("In-warp commands:\n")
+	out.Boldf("  state\n")
+	out.Normf("    Displays the state of the current warp.\n")
+	out.Valuf("    warp state\n")
+	out.Normf("\n")
 }
 
 // Parse parses the arguments passed to the command.
