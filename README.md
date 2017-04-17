@@ -1,15 +1,12 @@
-`warp` lets you share your terminal directly from your machine.
+`warp` lets you instantly share your terminal directly from your machine.
 
-You can start sharing your terminal with:
+Instantly start sharing your terminal (read-only) with:
 
 ```
 warp open stan-dev
 ```
-
-This will print the newly created warp ID and spawn a new shared temrinal.
-
-From there anyone can connect to your newly spawned terminal using the warp ID
-by running:
+From there, anyone can connect (read-only) to your newly spawned terminal using
+your warp ID by running:
 
 ```
 warp connect stan-dev
@@ -25,9 +22,26 @@ Warp is designed to enable high-bandwidth intereactions between developers.
 go get -u github.com/spolu/warp/cli/cmd/warp
 ```
 
+# Security
+
+ - TLS connections.
+ - Read-only by default.
+ - Limited trust in warpd (trustless if no other writer than the host).
+
+# Roadmap
+
+  - *v0.1.0 "metal"*
+    - see [TOOD](TODO)
+  - *v0.1.1 "chat"*
+    - `warp chat :warp` lets you voice-over a warp
+  - *future*
+    - terminal emulation
+      - full redraw on connection
+      - top status bar
+
 # Notes
 
 Once connected, `warp` will resize your terminal window to the hosting tty size
-(if possible). So, when connecting to a warp, it's recommended to run `warp` from
-new terminal window.  
+(if possible). So, it's recommended to run `warp connect` from a new terminal
+window.  
 

@@ -1,4 +1,4 @@
-#  v0.1
+# v0.1.0 "metal"
 
   [ ] in-warp commands
     [x] set env __WARP=
@@ -8,6 +8,8 @@
     [ ] warp authorize stan
     [ ] warp revoke stan
     [ ] warp revoke
+  [ ] GoExit and proper cancellation and deferral
+      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
   [ ] TLS
   [ ] protect warpd sessions with mutex (mostly teardown)
   [ ] gradceful host reconnection (closes warp for clients but auto reconnects)
@@ -18,7 +20,7 @@
   [x] rename warp/warp Session/Warp
   [x] prevent write at host level (if noone authorized at all)
 
-  # chat
+# v0.1.1 "chat"
 
     [ ] chat dependent of warp being open
     [ ] warp chat :id
