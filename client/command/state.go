@@ -42,7 +42,7 @@ func (c *State) Help(
 	out.Normf("\n")
 	out.Normf("  Displays the state of the current warp, including the list of connected users\n")
 	out.Normf("  and their authorization state. This command is only available from inside a\n")
-	out.Normf("  warp.")
+	out.Normf("  warp.\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
 	out.Valuf("  warp state\n")
@@ -73,22 +73,29 @@ func (c *State) Execute(
 		Args: []string{},
 	})
 	if err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to execute warp command: %v.", err),
-		)
+		return errors.Trace(err)
 	}
 
+	OutState(ctx, result.State)
+
+	return nil
+}
+
+func OutState(
+	ctx context.Context,
+	state warp.State,
+) {
 	out.Boldf("Warp:\n")
 	out.Normf("  ID: ")
-	out.Valuf("%s\n", result.State.Warp)
+	out.Valuf("%s\n", state.Warp)
 	out.Normf("  Size: ")
 	out.Valuf(
-		"%dx%d\n", result.State.WindowSize.Cols, result.State.WindowSize.Rows,
+		"%dx%d\n", state.WindowSize.Cols, state.WindowSize.Rows,
 	)
 	out.Normf("\n")
 
 	out.Boldf("Host:\n")
-	for _, u := range result.State.Users {
+	for _, u := range state.Users {
 		if u.Hosting {
 			out.Normf("  ID: ")
 			out.Valuf("%s", u.Token)
@@ -101,7 +108,7 @@ func (c *State) Execute(
 
 	out.Boldf("Clients:\n")
 	found := false
-	for _, u := range result.State.Users {
+	for _, u := range state.Users {
 		if !u.Hosting {
 			found = true
 			out.Normf("  ID: ")
@@ -121,5 +128,4 @@ func (c *State) Execute(
 		out.Normf("  No client.\n")
 	}
 
-	return nil
 }

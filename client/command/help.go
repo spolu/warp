@@ -56,12 +56,15 @@ func (c *Help) Help(
 	out.Boldf("  connect\n")
 	out.Normf("    Connects to an existing warp.\n")
 	out.Valuf("    warp connect goofy-dev\n")
-	out.Valuf("    warp connect DJc3hR0PoyFmQIIY\n")
 	out.Normf("\n")
 	out.Normf("In-warp commands:\n")
 	out.Boldf("  state\n")
 	out.Normf("    Displays the state of the current warp.\n")
 	out.Valuf("    warp state\n")
+	out.Normf("\n")
+	out.Boldf("  authorize\n")
+	out.Normf("    Grants write access to a client of the current warp.\n")
+	out.Valuf("    warp authorize goofy\n")
 	out.Normf("\n")
 }
 

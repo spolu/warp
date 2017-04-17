@@ -10,7 +10,9 @@ import (
 	"github.com/spolu/warp/lib/errors"
 )
 
-// Runs a local in-warp command and returns the result.
+// RunLocalCommand runs a local in-warp command and returns the result. If an
+// error is returned as part of the result, it formats a human readable error
+// that can be safely returned top the user.
 func RunLocalCommand(
 	ctx context.Context,
 	cmd warp.Command,
@@ -19,7 +21,9 @@ func RunLocalCommand(
 
 	conn, err := net.Dial("unix", path)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, errors.Trace(
+			errors.Newf("Failed to connect to warpd: %v", err),
+		)
 	}
 	defer conn.Close()
 
@@ -36,6 +40,14 @@ func RunLocalCommand(
 	var result warp.CommandResult
 	if err := commandR.Decode(&result); err != nil {
 		return nil, errors.Trace(err)
+	}
+
+	if result.Error.Code != "" {
+		return nil, errors.Newf(
+			"Received %s: %s",
+			result.Error.Code,
+			result.Error.Message,
+		)
 	}
 
 	return &result, nil

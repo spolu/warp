@@ -91,8 +91,7 @@ func (s *Srv) handle(
 	default:
 		result.Error.Code = "command_unknown"
 		result.Error.Message = fmt.Sprintf(
-			"Invalid command: %s",
-			cmd.Type,
+			"Invalid command %s", cmd.Type,
 		)
 	}
 
