@@ -24,20 +24,25 @@ go get -u github.com/spolu/warp/cli/cmd/warp
 
 # Security
 
- - TLS connections.
- - Read-only by default.
- - Limited trust in warpd (trustless if no other writer than the host).
+#### TLS connections.
+
+The connection between your host as well as you warp clients and the warpd
+server are established over TLS, protecting you from man in the middle attacks.
+
+#### Read-only by default.
+
+#### Limited trust in warpd (trustless if no other writer than the host).
 
 # Roadmap
 
-  - *v0.1.0 "metal"*
-    - see [TODO](TODO)
-  - *v0.1.1 "chat"*
-    - `warp chat :warp` lets you voice-over a warp
-  - *future*
-    - terminal emulation
-      - full redraw on connection
-      - top status bar
+  [ ]  *v0.1.0 "metal"*
+    [ ] see [TODO](TODO)
+  [ ]  *v0.1.1 "chat"*
+    [ ] `warp chat :warp` lets you voice-over a warp
+  [ ]  *future*
+    [ ] terminal emulation
+      [ ] full redraw on connection
+      [ ] top status bar
 
 # Notes
 
