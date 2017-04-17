@@ -39,7 +39,7 @@ server are established over TLS, protecting you from man in the middle attacks.
   - see [TODO](TODO)
 - [ ] *v0.1.1 "chat"*
   - `warp chat :warp` lets you voice-over a warp
-- [ ] *future*
+- [ ] *future releases*
   - terminal emulation
     - full redraw on connection
     - top status bar
