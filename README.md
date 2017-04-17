@@ -35,14 +35,14 @@ server are established over TLS, protecting you from man in the middle attacks.
 
 # Roadmap
 
-  [ ]  *v0.1.0 "metal"*
-    [ ] see [TODO](TODO)
-  [ ]  *v0.1.1 "chat"*
-    [ ] `warp chat :warp` lets you voice-over a warp
-  [ ]  *future*
-    [ ] terminal emulation
-      [ ] full redraw on connection
-      [ ] top status bar
+- [ ] *v0.1.0 "metal"*
+  - see [TODO](TODO)
+- [ ] *v0.1.1 "chat"*
+  - `warp chat :warp` lets you voice-over a warp
+- [ ] *future*
+  - terminal emulation
+    - full redraw on connection
+    - top status bar
 
 # Notes
 
