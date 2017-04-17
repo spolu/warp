@@ -7,7 +7,7 @@ Warp is designed to enable high-bandwidth interactions between developers.
 Instantly start sharing your terminal (read-only) under warp ID **goofy-dev**
 with:
 
-```
+```shell
 # While **goofy-dev** is a pretty cool name, you can name you warps however you
 # want. In particular a cryptographically secure random ID will be generated
 # for you if you don't specifiy one.
@@ -17,7 +17,7 @@ warp open goofy-dev
 
 From there, anyone can connect (read-only) to your warp by running:
 
-```
+```shell
 warp connect goofy-dev
 ```
 
