@@ -49,10 +49,14 @@ func (c *Help) Help(
 	out.Normf("    Show help for a specific command.\n")
 	out.Valuf("    warp help open\n")
 	out.Normf("\n")
-
 	out.Boldf("  open\n")
 	out.Normf("    Creates a new warp.\n")
 	out.Valuf("    warp open\n")
+	out.Normf("\n")
+	out.Boldf("  connect\n")
+	out.Normf("    Connects to an existing warp.\n")
+	out.Valuf("    warp connect goofy-dev\n")
+	out.Valuf("    warp connect DJc3hR0PoyFmQIIY\n")
 	out.Normf("\n")
 }
 

@@ -1,26 +1,30 @@
-# v0.1.0 "metal"
+# v0.1.0 "bare"
 
   [ ] in-warp commands
     [x] set env __WARP=
     [x] set env __WARP_UNIX_SOCKET=
     [x] local unix socket that is a commandC channel > updateC
-    [ ] warp state
+    [x] warp state
     [ ] warp authorize stan
     [ ] warp revoke stan
     [ ] warp revoke
-  [ ] GoExit and proper cancellation and deferral
-      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
-  [ ] TLS
   [ ] protect warpd sessions with mutex (mostly teardown)
-  [ ] gradceful host reconnection (closes warp for clients but auto reconnects)
-  [ ] better PROMPT support for zsh, csh / linux
   [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC
   [x] rename Client/Session
   [x] rename warp/warp Session/Warp
   [x] prevent write at host level (if noone authorized at all)
 
-# v0.1.1 "chat"
+# v0.1.1 "safe"
+
+  [ ] GoExit and proper cancellation and deferral
+      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+  [ ] TLS
+  [ ] generate and persists user/secret in ~/.warp
+  [ ] graceful host reconnection (closes warp for clients but auto reconnects)
+  [ ] better PROMPT support for zsh, csh / linux
+
+# v0.1.2 "chat"
 
     [ ] chat dependent of warp being open
     [ ] warp chat :id

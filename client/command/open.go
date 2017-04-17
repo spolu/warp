@@ -63,17 +63,22 @@ func (c *Open) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp open [<id>]\n")
 	out.Normf("\n")
-	out.Normf("  Spawns a shared terminal with the provided id. Others can use the id to connect.\n")
-	out.Normf("  If no id is provided a random one is generated.\n")
+	out.Normf("  Creates a new warp with the specified ID and starts sharing your terminal\n")
+	out.Normf("  (read-only). If no ID is provided a (cryptographically secure) random one is\n")
+	out.Normf("  generated.\n")
+	out.Normf("\n")
+	out.Normf("  Anyone can then connect to you warp using the ")
+	out.Boldf("connect")
+	out.Normf(" command.\n")
 	out.Normf("\n")
 	out.Normf("Arguments:\n")
 	out.Boldf("  id\n")
-	out.Normf("    The id to assign to the newly shared terminal.\n")
-	out.Valuf("    spolu-dev\n")
+	out.Normf("    The ID to assign to the new warp.\n")
+	out.Valuf("    goofy-dev\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
 	out.Valuf("  warp open\n")
-	out.Valuf("  warp open spolu-dev\n")
+	out.Valuf("  warp open goofy-dev\n")
 	out.Normf("\n")
 }
 
@@ -206,7 +211,7 @@ func (c *Open) Execute(
 	}
 
 	out.Normf("Opened warp: ")
-	out.Boldf("%s\n", c.warp)
+	out.Valuf("%s\n", c.warp)
 
 	old, err := terminal.MakeRaw(stdin)
 	if err != nil {

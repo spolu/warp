@@ -7,7 +7,6 @@ import (
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/client"
 	"github.com/spolu/warp/lib/errors"
-	"github.com/spolu/warp/lib/logging"
 	"github.com/spolu/warp/lib/out"
 )
 
@@ -41,8 +40,8 @@ func (c *State) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp state\n")
 	out.Normf("\n")
-	out.Normf("  Displays the state of the current warp, including the list of connected users and their authorization. This command is only available\n")
-	out.Normf("  from inside a warp.\n")
+	out.Normf("  Displays the state of the current warp, including the list of connected users\n")
+	out.Normf("  and their authorization. This command is only available from inside a warp.\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
 	out.Valuf("  warp state\n")
@@ -78,7 +77,48 @@ func (c *State) Execute(
 		)
 	}
 
-	logging.Logf(ctx, "RESULT: %+v", result)
+	out.Boldf("Warp:\n")
+	out.Normf("  ID: ")
+	out.Valuf("%s\n", result.State.Warp)
+	out.Normf("  Size: ")
+	out.Valuf(
+		"%dx%d\n", result.State.WindowSize.Cols, result.State.WindowSize.Rows,
+	)
+	out.Normf("\n")
+
+	out.Boldf("Host:\n")
+	for _, u := range result.State.Users {
+		if u.Hosting {
+			out.Normf("  ID: ")
+			out.Valuf("%s", u.Token)
+			out.Normf(" Username: ")
+			out.Valuf("%s", u.Username)
+			out.Normf("\n")
+		}
+	}
+	out.Normf("\n")
+
+	out.Boldf("Clients:\n")
+	found := false
+	for _, u := range result.State.Users {
+		if !u.Hosting {
+			found = true
+			out.Normf("  ID: ")
+			out.Valuf("%s", u.Token)
+			out.Normf(" Username: ")
+			out.Valuf("%s", u.Username)
+			out.Normf(" Authorized: ")
+			if u.Mode&warp.ModeShellWrite != 0 {
+				out.Errof("true")
+			} else {
+				out.Valuf("false")
+			}
+			out.Normf("\n")
+		}
+	}
+	if !found {
+		out.Normf("  No client.\n")
+	}
 
 	return nil
 }

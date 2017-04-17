@@ -77,8 +77,13 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 ## Roadmap
 
-- [ ] *v0.1.0 "metal"*
+- [ ] *v0.0.2 "bare"*
   - see [TODO](TODO)
+- [ ] *v0.1.0 "safe"*
+  - TLS
+  - PROMPT support
+  - Persisted user token/secret
+  - Graceful host reconnect
 - [ ] *v0.1.1 "chat"*
   - `warp chat :warp` lets you voice-over a warp
 - [ ] *future releases*

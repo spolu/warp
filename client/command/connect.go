@@ -53,17 +53,19 @@ func (c *Connect) Help(
 	out.Normf("\nUsage: ")
 	out.Boldf("warp connect <id>\n")
 	out.Normf("\n")
-	out.Normf("  Connects to the shared terminal denoted by `id`. If possible warp will\n")
-	out.Normf("  attempt to resize the window it is running in to the size of the shared\n")
-	out.Normf("  terminal.\n")
+	out.Normf("  Connects to an existing warp (read-only).\n")
+	out.Normf("\n")
+	out.Normf("  If possible warp will attempt to resize the window it is running in to the\n")
+	out.Normf("  size of the host terminal.\n")
 	out.Normf("\n")
 	out.Normf("Arguments:\n")
 	out.Boldf("  id\n")
-	out.Normf("    The id of the shared terminal to connect to.\n")
-	out.Valuf("    ae7fd234abe2\n")
+	out.Normf("    The ID of the warp to connect to.\n")
+	out.Valuf("    DJc3hR0PoyFmQIIY goofy-dev\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
-	out.Valuf("  warp connect ae7fd234abe2\n")
+	out.Valuf("    warp connect goofy-dev\n")
+	out.Valuf("    warp connect DJc3hR0PoyFmQIIY\n")
 	out.Normf("\n")
 }
 
@@ -137,7 +139,7 @@ func (c *Connect) Execute(
 	defer c.ss.TearDown()
 
 	out.Normf("Connected to warp: ")
-	out.Boldf("%s\n", c.warp)
+	out.Valuf("%s\n", c.warp)
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
