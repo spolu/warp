@@ -1,3 +1,11 @@
+```
+__      ____ _ _ __ _ __  
+\ \ /\ / / _` | '__| '_ \ 
+ \ V  V / (_| | |  | |_) |
+  \_/\_/ \__,_|_|  | .__/ 
+                   |_|    
+```
+
 #### `warp` lets you instantly share your terminal directly from your machine
 
 `warp` is designed and optimized for high-bandwidth interactions between
