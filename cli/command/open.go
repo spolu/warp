@@ -308,6 +308,11 @@ func (c *Open) Execute(
 		c.ss.TearDown()
 	}()
 
+	// Launch the local command server.
+	go func() {
+		c.srv.Run(ctx)
+	}()
+
 	// Multiplex shell to dataC, Stdout.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
@@ -333,11 +338,6 @@ func (c *Open) Execute(
 			c.pty.Write(data)
 		}, os.Stdin)
 		c.ss.TearDown()
-	}()
-
-	// Launch the local command server.
-	go func() {
-		c.srv.Run(ctx)
 	}()
 
 	<-ctx.Done()

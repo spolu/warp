@@ -39,6 +39,8 @@ func (s *Srv) Run(
 	if err != nil {
 		return errors.Trace(err)
 	}
+	defer ln.Close()
+
 	logging.Logf(ctx, "Listening: address=%s", s.address)
 
 	for {

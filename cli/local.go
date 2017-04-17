@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/errors"
 )
@@ -22,20 +21,10 @@ func RunLocalCommand(
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	defer conn.Close()
 
-	mux, err := yamux.Client(conn, nil)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	defer mux.Close()
-
-	// Opens command channel commandC.
-	commandC, err := mux.Open()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	commandR := gob.NewDecoder(commandC)
-	commandW := gob.NewEncoder(commandC)
+	commandR := gob.NewDecoder(conn)
+	commandW := gob.NewEncoder(conn)
 
 	if err := commandW.Encode(cmd); err != nil {
 		return nil, errors.Trace(

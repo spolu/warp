@@ -8,8 +8,8 @@ import (
 	"os"
 	"path"
 	"sync"
+	"syscall"
 
-	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/errors"
 )
@@ -45,11 +45,15 @@ func NewSrv(
 func (s *Srv) Run(
 	ctx context.Context,
 ) error {
-	ln, err := net.Listen("unix", s.path)
+	// Start by unlinking the unix socket (the open command ensures warp
+	// uniqueness).
+	syscall.Unlink(s.path)
 
+	ln, err := net.Listen("unix", s.path)
 	if err != nil {
 		return errors.Trace(err)
 	}
+	defer ln.Close()
 
 	for {
 		conn, err := ln.Accept()
@@ -67,23 +71,10 @@ func (s *Srv) handle(
 	ctx context.Context,
 	conn net.Conn,
 ) error {
-	mux, err := yamux.Client(conn, nil)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Session error: %v", err),
-		)
-	}
-	defer mux.Close()
+	defer conn.Close()
 
-	// Opens command channel commandC
-	commandC, err := mux.Open()
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Command channel open error: %v", err),
-		)
-	}
-	commandR := gob.NewDecoder(commandC)
-	commandW := gob.NewEncoder(commandC)
+	commandR := gob.NewDecoder(conn)
+	commandW := gob.NewEncoder(conn)
 
 	var cmd warp.Command
 	if err := commandR.Decode(&cmd); err != nil {
