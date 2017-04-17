@@ -1,5 +1,7 @@
 *`warp` lets you instantly share your terminal directly from your machine.*
 
+## How-to
+
 Instantly start sharing your terminal (read-only) under warp **goofy-dev**
 with:
 
@@ -14,17 +16,17 @@ your warp **goofy-dev** by running:
 warp connect goofy-dev
 ```
 
-# Use-cases
+## Use-case
 
 Warp is designed to enable high-bandwidth intereactions between developers.
 
-# Installation
+## Installation
 
 ```
 go get -u github.com/spolu/warp/cli/cmd/warp
 ```
 
-# Security
+## Security
 
 #### TLS connections.
 
@@ -35,7 +37,7 @@ server are established over TLS, protecting you from man in the middle attacks.
 
 #### Limited trust in warpd (trustless if no other writer than the host).
 
-# Roadmap
+## Roadmap
 
 - [ ] *v0.1.0 "metal"*
   - see [TODO](TODO)
@@ -47,7 +49,7 @@ server are established over TLS, protecting you from man in the middle attacks.
     - top status bar
   - warp signin and verified usernames
 
-# Notes
+## Notes
 
 Once connected, `warp` will resize your terminal window to the hosting tty size
 (if possible). So, it's recommended to run `warp connect` from a new terminal
