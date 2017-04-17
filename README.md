@@ -1,15 +1,17 @@
 `warp` lets you instantly share your terminal directly from your machine.
 
-Instantly start sharing your terminal (read-only) with:
+Instantly start sharing your terminal (read-only) under warp **goofy-dev**
+with:
 
 ```
-warp open stan-dev
+warp open goofy-dev
 ```
+
 From there, anyone can connect (read-only) to your newly spawned terminal using
-your warp ID by running:
+your warp **goofy-dev** by running:
 
 ```
-warp connect stan-dev
+warp connect goofy-dev
 ```
 
 # Use-cases
