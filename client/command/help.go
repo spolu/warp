@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spolu/warp"
-	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/client"
 	"github.com/spolu/warp/lib/out"
 )
 

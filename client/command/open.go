@@ -15,7 +15,7 @@ import (
 
 	"github.com/kr/pty"
 	"github.com/spolu/warp"
-	"github.com/spolu/warp/cli"
+	"github.com/spolu/warp/client"
 	"github.com/spolu/warp/lib/errors"
 	"github.com/spolu/warp/lib/out"
 	"github.com/spolu/warp/lib/plex"

@@ -44,7 +44,7 @@ $ warp connect goofy-dev
 # Requires Go to be installed on your machine. You can easily install Go from
 # https://golang.org/doc/install
 
-go get -u github.com/spolu/warp/cli/cmd/warp
+go get -u github.com/spolu/warp/client/cmd/warp
 ```
 
 ## Security

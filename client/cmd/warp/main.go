@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/spolu/warp/cli"
-	_ "github.com/spolu/warp/cli/command"
+	"github.com/spolu/warp/client"
+	_ "github.com/spolu/warp/client/command"
 	"github.com/spolu/warp/lib/out"
 )
 
