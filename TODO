@@ -1,8 +1,9 @@
 # v0.1.0 "bare"
 
-  [ ] protect warpd sessions with mutex (mostly teardown)
+  [ ] TLS
   [ ] GoExit and proper cancellation and deferral
       http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+  [x] Send version as part of Hello
   [x] in-warp commands
     [x] set env __WARP=
     [x] set env __WARP_UNIX_SOCKET=
@@ -17,10 +18,11 @@
   [x] rename Client/Session
   [x] rename warp/warp Session/Warp
   [x] prevent write at host level (if noone authorized at all)
+  [x] protect warpd sessions with mutex (mostly teardown)
 
 # v0.1.1 "safe"
 
-  [ ] TLS
+  [ ] confirmation on warp authorize (also show warpd ID)
   [ ] generate and persists user/secret in ~/.warp
   [ ] graceful host reconnection (closes warp for clients but auto reconnects)
   [ ] better PROMPT support for zsh, csh / linux

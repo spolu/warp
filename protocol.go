@@ -72,8 +72,9 @@ type State struct {
 // SessionHello is the initial message sent over a session update channel to
 // identify itself to the server.
 type SessionHello struct {
-	Warp string
-	From Session
+	Warp    string
+	From    Session
+	Version string
 
 	Type     SessionType
 	Username string

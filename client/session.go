@@ -119,6 +119,7 @@ func NewSession(
 	hello := warp.SessionHello{
 		Warp:     ss.warp,
 		From:     ss.session,
+		Version:  warp.Version,
 		Type:     ss.sessionType,
 		Username: ss.username,
 	}
