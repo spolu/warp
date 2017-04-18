@@ -3,7 +3,7 @@
  | | /| / / __ `/ ___/ __ \
  | |/ |/ / /_/ / /  / /_/ /
  |__/|__/\__,_/_/  / .___/ 
-                  /_/         v0.0.1
+                  /_/        v0.0.1
 ```
 
 #### `warp` lets you instantly share your terminal directly from your machine
