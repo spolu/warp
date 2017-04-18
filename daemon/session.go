@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -36,6 +37,8 @@ type Session struct {
 	tornDown bool
 	ctx      context.Context
 	cancel   func()
+
+	mutex *sync.Mutex
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -58,6 +61,7 @@ func NewSession(
 		tornDown: false,
 		ctx:      ctx,
 		cancel:   cancel,
+		mutex:    &sync.Mutex{},
 	}
 
 	// Opens state channel stateC.
@@ -128,6 +132,8 @@ func (ss *Session) ToString() string {
 
 // TearDown tears down a session, closing and reclaiming channels.
 func (ss *Session) TearDown() {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
 	if !ss.tornDown {
 		ss.tornDown = true
 		ss.cancel()
@@ -148,6 +154,8 @@ func (ss *Session) SendError(
 	code string,
 	message string,
 ) {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
 	if ss.tornDown {
 		return
 	}
