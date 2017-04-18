@@ -175,7 +175,7 @@ func (ss *Session) ErrorOut(
 ) {
 	go func() {
 		// Sleep for 50ms to give time to the terminal to be restored. The
-		// program will sleep for 100ms before existing to give us a chance to
+		// program will sleep for 100ms before exiting to give us a chance to
 		// execute.
 		time.Sleep(50 * time.Millisecond)
 		out.Errof(

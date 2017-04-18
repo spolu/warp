@@ -20,7 +20,7 @@ func main() {
 		out.Errof("[Error] %s\n", err.Error())
 	}
 
-	// Sleep for 100 give time to all goroutine to exist properly and to the
+	// Sleep for 100 give time to all goroutine to exit properly and to the
 	// session ErrorOut to print out after the terminal is restored from raw
 	// mode.
 	time.Sleep(100 * time.Millisecond)
