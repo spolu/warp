@@ -37,7 +37,8 @@ From inside a warp, retrieve the list of connected users with:
 $ warp state
 ```
 
-Grant write-access to a client (be extra careful! see *Security* below):
+Grant write-access to a client (**be extra careful!** see the *Security*
+section below):
 
 ```shell
 $ warp authorize stan
