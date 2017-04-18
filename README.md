@@ -30,6 +30,24 @@ From there, anyone can connect (read-only) to your warp with:
 $ warp connect goofy-dev
 ```
 
+#### Granting and revoking write-access
+
+From inside the warp, you can retrieve the list of connected users with:
+```shell
+$ warp state
+```
+
+You can grant write-access to a client (be extra careful! see *Security*
+below):
+```shell
+$ warp authorize stan
+```
+
+Revoke previously granted write-access with:
+```shell
+$ warp revoke stan
+```
+
 ## Installation
 
 #### From source code
