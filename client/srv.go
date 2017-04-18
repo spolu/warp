@@ -130,7 +130,7 @@ func (s *Srv) executeAuthorize(
 	if len(cmd.Args) != 1 {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
-			Error: warp.CommandError{
+			Error: warp.Error{
 				Code:    "user_token_required",
 				Message: "User token to authorize is required.",
 			},
@@ -141,7 +141,7 @@ func (s *Srv) executeAuthorize(
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
-			Error: warp.CommandError{
+			Error: warp.Error{
 				Code:    "user_unknown",
 				Message: err.Error() + ".",
 			},
@@ -152,7 +152,7 @@ func (s *Srv) executeAuthorize(
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
-			Error: warp.CommandError{
+			Error: warp.Error{
 				Code:    "user_unknown",
 				Message: err.Error() + ".",
 			},
@@ -167,7 +167,7 @@ func (s *Srv) executeAuthorize(
 	}); err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
-			Error: warp.CommandError{
+			Error: warp.Error{
 				Code:    "update_failed",
 				Message: "Failed to apply update to warp.",
 			},
@@ -190,7 +190,7 @@ func (s *Srv) executeRevoke(
 		if err != nil {
 			return warp.CommandResult{
 				Type: warp.CmdTpRevoke,
-				Error: warp.CommandError{
+				Error: warp.Error{
 					Code:    "user_unknown",
 					Message: err.Error() + ".",
 				},
@@ -201,7 +201,7 @@ func (s *Srv) executeRevoke(
 		if err != nil {
 			return warp.CommandResult{
 				Type: warp.CmdTpRevoke,
-				Error: warp.CommandError{
+				Error: warp.Error{
 					Code:    "user_unknown",
 					Message: err.Error() + ".",
 				},
@@ -217,7 +217,7 @@ func (s *Srv) executeRevoke(
 	}); err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpRevoke,
-			Error: warp.CommandError{
+			Error: warp.Error{
 				Code:    "update_failed",
 				Message: "Failed to apply update to warp.",
 			},

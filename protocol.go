@@ -34,12 +34,6 @@ const (
 	SsTpChatClient SessionType = "chat"
 )
 
-// Size reprensents a window size.
-type Size struct {
-	Rows int
-	Cols int
-}
-
 // User represents a user of a warp.
 type User struct {
 	Token    string
@@ -60,6 +54,12 @@ type Session struct {
 type Error struct {
 	Code    string
 	Message string
+}
+
+// Size reprensents a window size.
+type Size struct {
+	Rows int
+	Cols int
 }
 
 // State is the struct sent over the network to update sessions state.
@@ -118,16 +118,10 @@ type Command struct {
 	Args []string
 }
 
-// CommandError represents a command error. If set the command failed.
-type CommandError struct {
-	Code    string
-	Message string
-}
-
 // CommandResult is used to send command result to the local client.
 type CommandResult struct {
 	Type   CommandType
 	State  State
-	Error  CommandError
+	Error  Error
 	Result map[string]string
 }
