@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/logging"
@@ -201,7 +203,7 @@ func (w *Warp) handleHost(
 
 	// run state updates
 	go func() {
-	HOSTLOOP:
+	STATELOOP:
 		for {
 			var st warp.HostUpdate
 			if err := w.host.session.updateR.Decode(&st); err != nil {
@@ -209,7 +211,7 @@ func (w *Warp) handleHost(
 					"Error receiving host update: session=%s error=%v",
 					ss.ToString(), err,
 				)
-				break HOSTLOOP
+				break STATELOOP
 			}
 
 			// Check that the warp token is the same.
@@ -219,7 +221,7 @@ func (w *Warp) handleHost(
 						"expected=% received=%s",
 					ss.ToString, w.token, st.Warp,
 				)
-				break HOSTLOOP
+				break STATELOOP
 			}
 
 			// Check that the session is the same in particular the secret to
@@ -231,7 +233,7 @@ func (w *Warp) handleHost(
 					"Host credentials mismatch: session=%s",
 					ss.ToString,
 				)
-				break HOSTLOOP
+				break STATELOOP
 			}
 
 			w.mutex.Lock()
@@ -244,7 +246,7 @@ func (w *Warp) handleHost(
 						"Unknown user from host update: session=%s user=%s",
 						ss.ToString(), user,
 					)
-					break HOSTLOOP
+					break STATELOOP
 				}
 			}
 			w.mutex.Unlock()
@@ -275,20 +277,26 @@ func (w *Warp) handleHost(
 
 	// Send data to host.
 	go func() {
+	DATALOOP:
 		for {
 			select {
-			case buf := <-w.data:
+			case buf, ok := <-w.data:
 				logging.Logf(ctx,
 					"Sending data to host: session=%s size=%d",
 					ss.ToString(), len(buf),
 				)
 				_, err := ss.dataC.Write(buf)
 				if err != nil {
-					break
+					break DATALOOP
+				}
+				if !ok {
+					fmt.Printf("asdasd\n")
+					break DATALOOP
 				}
 			case <-ss.ctx.Done():
-				break
+				break DATALOOP
 			default:
+				time.Sleep(1 * time.Millisecond)
 			}
 		}
 		ss.SendInternalError(ctx)
@@ -305,6 +313,8 @@ func (w *Warp) handleHost(
 	)
 
 	<-ss.ctx.Done()
+
+	close(w.data)
 
 	// Cancel all clients.
 	logging.Logf(ctx,

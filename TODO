@@ -9,7 +9,9 @@
     [ ] warp revoke stan
     [ ] warp revoke
   [ ] protect warpd sessions with mutex (mostly teardown)
-  [ ] warpd 100% CPU :/
+  [ ] GoExit and proper cancellation and deferral
+      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+  [x] warpd 100% CPU :/
   [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC
   [x] rename Client/Session
@@ -18,8 +20,6 @@
 
 # v0.1.1 "safe"
 
-  [ ] GoExit and proper cancellation and deferral
-      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
   [ ] TLS
   [ ] generate and persists user/secret in ~/.warp
   [ ] graceful host reconnection (closes warp for clients but auto reconnects)
