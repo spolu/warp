@@ -90,6 +90,8 @@ func (s *Srv) handle(
 		result = s.executeState(ctx, cmd)
 	case warp.CmdTpAuthorize:
 		result = s.executeAuthorize(ctx, cmd)
+	case warp.CmdTpRevoke:
+		result = s.executeRevoke(ctx, cmd)
 	default:
 		result.Error.Code = "command_unknown"
 		result.Error.Message = fmt.Sprintf(
@@ -175,5 +177,55 @@ func (s *Srv) executeAuthorize(
 	// NO-OP State is automatically appended to all results.
 	return warp.CommandResult{
 		Type: warp.CmdTpAuthorize,
+	}
+}
+
+// executeRevoke executes the *revoke* command.
+func (s *Srv) executeRevoke(
+	ctx context.Context,
+	cmd warp.Command,
+) warp.CommandResult {
+	for _, user := range cmd.Args {
+		mode, err := s.host.State().GetMode(user)
+		if err != nil {
+			return warp.CommandResult{
+				Type: warp.CmdTpRevoke,
+				Error: warp.CommandError{
+					Code:    "user_unknown",
+					Message: err.Error() + ".",
+				},
+			}
+		}
+
+		err = s.host.State().SetMode(user, *mode-*mode&warp.ModeShellWrite)
+		if err != nil {
+			return warp.CommandResult{
+				Type: warp.CmdTpRevoke,
+				Error: warp.CommandError{
+					Code:    "user_unknown",
+					Message: err.Error() + ".",
+				},
+			}
+		}
+	}
+
+	if err := s.host.SendHostUpdate(ctx, warp.HostUpdate{
+		Warp:       s.host.Warp(),
+		From:       s.host.Session(),
+		WindowSize: s.host.State().WindowSize(),
+		Modes:      s.host.State().Modes(),
+	}); err != nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpRevoke,
+			Error: warp.CommandError{
+				Code:    "update_failed",
+				Message: "Failed to apply update to warp.",
+			},
+		}
+	}
+
+	// NO-OP State is automatically appended to all results.
+	return warp.CommandResult{
+		Type: warp.CmdTpRevoke,
 	}
 }

@@ -1,16 +1,16 @@
 # v0.1.0 "bare"
 
-  [ ] in-warp commands
+  [ ] protect warpd sessions with mutex (mostly teardown)
+  [ ] GoExit and proper cancellation and deferral
+      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+  [x] in-warp commands
     [x] set env __WARP=
     [x] set env __WARP_UNIX_SOCKET=
     [x] local unix socket that is a commandC channel > updateC
     [x] warp state
     [x] warp authorize stan
-    [ ] warp revoke stan
-    [ ] warp revoke
-  [ ] protect warpd sessions with mutex (mostly teardown)
-  [ ] GoExit and proper cancellation and deferral
-      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+    [x] warp revoke stan
+    [x] warp revoke
   [x] warpd 100% CPU :/
   [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC
