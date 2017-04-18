@@ -2,9 +2,7 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/logging"
@@ -279,24 +277,17 @@ func (w *Warp) handleHost(
 	go func() {
 	DATALOOP:
 		for {
-			select {
-			case buf, ok := <-w.data:
-				logging.Logf(ctx,
-					"Sending data to host: session=%s size=%d",
-					ss.ToString(), len(buf),
-				)
-				_, err := ss.dataC.Write(buf)
-				if err != nil {
-					break DATALOOP
-				}
-				if !ok {
-					fmt.Printf("asdasd\n")
-					break DATALOOP
-				}
-			case <-ss.ctx.Done():
+			buf, ok := <-w.data
+			logging.Logf(ctx,
+				"Sending data to host: session=%s size=%d",
+				ss.ToString(), len(buf),
+			)
+			_, err := ss.dataC.Write(buf)
+			if err != nil {
 				break DATALOOP
-			default:
-				time.Sleep(1 * time.Millisecond)
+			}
+			if !ok {
+				break DATALOOP
 			}
 		}
 		ss.SendInternalError(ctx)
