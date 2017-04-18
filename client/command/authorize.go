@@ -21,8 +21,8 @@ func init() {
 
 // Authorize authorizes write access to a warp client.
 type Authorize struct {
-	username string
-	token    string
+	usernameOrToken string
+	token           string
 }
 
 // NewAuthorize constructs and initializes the command.
@@ -70,6 +70,14 @@ func (c *Authorize) Parse(
 	ctx context.Context,
 	args []string,
 ) error {
+	if len(args) == 0 {
+		return errors.Trace(
+			errors.Newf("Username or token required."),
+		)
+	} else {
+		c.usernameOrToken = args[0]
+	}
+
 	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
 		return errors.Trace(
 			errors.Newf("This command is only available from inside a warp."),
@@ -83,8 +91,44 @@ func (c *Authorize) Parse(
 func (c *Authorize) Execute(
 	ctx context.Context,
 ) error {
-
 	result, err := cli.RunLocalCommand(ctx, warp.Command{
+		Type: warp.CmdTpState,
+		Args: []string{c.token},
+	})
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	matches := 0
+	for _, user := range result.State.Users {
+		if !user.Hosting {
+			if user.Username == c.usernameOrToken ||
+				user.Token == c.usernameOrToken {
+				matches += 1
+				c.token = user.Token
+			}
+		}
+	}
+
+	if matches == 0 {
+		return errors.Trace(
+			errors.Newf(
+				"Username or token not found: %s. Use `warp state` to "+
+					"retrieve a list of current warp clients.",
+				c.usernameOrToken,
+			),
+		)
+	} else if matches > 1 {
+		return errors.Trace(
+			errors.Newf(
+				"Username ambiguous, please provide a user token instead. " +
+					"Warp clients user tokens can be retrieved with " +
+					"`warp state`.",
+			),
+		)
+	}
+
+	result, err = cli.RunLocalCommand(ctx, warp.Command{
 		Type: warp.CmdTpAuthorize,
 		Args: []string{c.token},
 	})

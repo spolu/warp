@@ -141,6 +141,23 @@ func (w *Warp) Update(
 	return nil
 }
 
+// GetMode returns the mode of a given user.
+func (w *Warp) GetMode(
+	user string,
+) (*warp.Mode, error) {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	userState, ok := w.users[user]
+	if !ok {
+		return nil, errors.Trace(
+			errors.Newf("Unknown user: %s", user),
+		)
+	}
+
+	return &userState.mode, nil
+}
+
 // SetMode updates the mode of a given user.
 func (w *Warp) SetMode(
 	user string,
@@ -196,4 +213,20 @@ func (w *Warp) State(
 	}
 
 	return state
+}
+
+// WindowSizse returns the current window size.
+func (w *Warp) WindowSize() warp.Size {
+	return w.windowSize
+}
+
+// Modes returns user modes.
+func (w *Warp) Modes() map[string]warp.Mode {
+	modes := map[string]warp.Mode{}
+	for token, u := range w.users {
+		if !u.hosting {
+			modes[token] = u.mode
+		}
+	}
+	return modes
 }

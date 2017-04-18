@@ -88,10 +88,12 @@ func (s *Srv) handle(
 	switch cmd.Type {
 	case warp.CmdTpState:
 		result = s.executeState(ctx, cmd)
+	case warp.CmdTpAuthorize:
+		result = s.executeAuthorize(ctx, cmd)
 	default:
 		result.Error.Code = "command_unknown"
 		result.Error.Message = fmt.Sprintf(
-			"Invalid command %s", cmd.Type,
+			"Invalid command %s.", cmd.Type,
 		)
 	}
 
@@ -115,5 +117,63 @@ func (s *Srv) executeState(
 	// NO-OP State is automatically appended to all results.
 	return warp.CommandResult{
 		Type: warp.CmdTpState,
+	}
+}
+
+// executeAuthorize executes the *authorize* command.
+func (s *Srv) executeAuthorize(
+	ctx context.Context,
+	cmd warp.Command,
+) warp.CommandResult {
+	if len(cmd.Args) != 1 {
+		return warp.CommandResult{
+			Type: warp.CmdTpAuthorize,
+			Error: warp.CommandError{
+				Code:    "user_token_required",
+				Message: "User token to authorize is required.",
+			},
+		}
+	}
+
+	mode, err := s.host.State().GetMode(cmd.Args[0])
+	if err != nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpAuthorize,
+			Error: warp.CommandError{
+				Code:    "user_unknown",
+				Message: err.Error() + ".",
+			},
+		}
+	}
+
+	err = s.host.State().SetMode(cmd.Args[0], *mode|warp.ModeShellWrite)
+	if err != nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpAuthorize,
+			Error: warp.CommandError{
+				Code:    "user_unknown",
+				Message: err.Error() + ".",
+			},
+		}
+	}
+
+	if err := s.host.SendHostUpdate(ctx, warp.HostUpdate{
+		Warp:       s.host.Warp(),
+		From:       s.host.Session(),
+		WindowSize: s.host.State().WindowSize(),
+		Modes:      s.host.State().Modes(),
+	}); err != nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpAuthorize,
+			Error: warp.CommandError{
+				Code:    "update_failed",
+				Message: "Failed to apply update to warp.",
+			},
+		}
+	}
+
+	// NO-OP State is automatically appended to all results.
+	return warp.CommandResult{
+		Type: warp.CmdTpAuthorize,
 	}
 }

@@ -5,10 +5,11 @@
     [x] set env __WARP_UNIX_SOCKET=
     [x] local unix socket that is a commandC channel > updateC
     [x] warp state
-    [ ] warp authorize stan
+    [x] warp authorize stan
     [ ] warp revoke stan
     [ ] warp revoke
   [ ] protect warpd sessions with mutex (mostly teardown)
+  [ ] warpd 100% CPU :/
   [x] errorC and meaningful errors to client
   [x] factor session creation / remove hostC
   [x] rename Client/Session

@@ -76,7 +76,7 @@ func (c *Connect) Parse(
 ) error {
 	if len(args) == 0 {
 		return errors.Trace(
-			errors.Newf("Warp id required."),
+			errors.Newf("Warp ID required."),
 		)
 	} else {
 		c.warp = args[0]

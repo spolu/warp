@@ -44,6 +44,16 @@ func (ss *Session) State() *Warp {
 	return ss.state
 }
 
+// Warp returns the session warp token.
+func (ss *Session) Warp() string {
+	return ss.warp
+}
+
+// Session returns the protocol session representation.
+func (ss *Session) Session() warp.Session {
+	return ss.session
+}
+
 // DataC returns the session data channel.
 func (ss *Session) DataC() net.Conn {
 	return ss.dataC

@@ -117,13 +117,16 @@ type Command struct {
 	Args []string
 }
 
+// CommandError represents a command error. If set the command failed.
+type CommandError struct {
+	Code    string
+	Message string
+}
+
 // CommandResult is used to send command result to the local client.
 type CommandResult struct {
-	Type  CommandType
-	State State
-	Error struct {
-		Code    string
-		Message string
-	}
+	Type   CommandType
+	State  State
+	Error  CommandError
 	Result map[string]string
 }
