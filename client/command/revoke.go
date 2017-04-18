@@ -11,47 +11,38 @@ import (
 )
 
 const (
-	// CmdNmAuthorize is the command name.
-	CmdNmAuthorize cli.CmdName = "authorize"
+	// CmdNmRevoke is the command name.
+	CmdNmRevoke cli.CmdName = "revoke"
 )
 
 func init() {
-	cli.Registrar[CmdNmAuthorize] = NewAuthorize
+	cli.Registrar[CmdNmRevoke] = NewRevoke
 }
 
-// Authorize authorizes write access to a warp client.
-type Authorize struct {
+// Revoke authorizes write access to a warp client.
+type Revoke struct {
 	usernameOrToken string
 }
 
-// NewAuthorize constructs and initializes the command.
-func NewAuthorize() cli.Command {
-	return &Authorize{}
+// NewRevoke constructs and initializes the command.
+func NewRevoke() cli.Command {
+	return &Revoke{}
 }
 
 // Name returns the command name.
-func (c *Authorize) Name() cli.CmdName {
-	return CmdNmAuthorize
+func (c *Revoke) Name() cli.CmdName {
+	return CmdNmRevoke
 }
 
 // Help prints out the help message for the command.
-func (c *Authorize) Help(
+func (c *Revoke) Help(
 	ctx context.Context,
 ) {
 	out.Normf("\nUsage: ")
-	out.Boldf("warp authorize <username_or_token>\n")
+	out.Boldf("warp revoke [<username_or_token>]\n")
 	out.Normf("\n")
-	out.Normf("  Grants write access to a client of the current warp.\n")
-	out.Normf("\n")
-	out.Errof("  Be extra careful!")
-	out.Normf(" Please make sure that the user you are granting write\n")
-	out.Normf("  access to is who you think they are. An attacker could take over your machine\n")
-	out.Normf("  in a split second with write access to one of your warps.\n")
-	out.Normf("\n")
-	out.Normf("  If the username of a user is ambiguous (multiple users connnected with the\n")
-	out.Normf("  same username), you must use the associated user token, as returned by the\n")
-	out.Boldf("  state")
-	out.Normf(" command.\n")
+	out.Normf("  Revokes write access to a client of the current warp. If no argument is\n")
+	out.Normf("  provided, it revokes write access to all connected clients.\n")
 	out.Normf("\n")
 	out.Normf("Arguments:\n")
 	out.Boldf("  username_or_token\n")
@@ -59,21 +50,18 @@ func (c *Authorize) Help(
 	out.Valuf("    guest_JpJP50EIas9cOfwo goofy\n")
 	out.Normf("\n")
 	out.Normf("Examples:\n")
-	out.Valuf("  warp authorize goofy\n")
-	out.Valuf("  warp authorize guest_JpJP50EIas9cOfwo\n")
+	out.Valuf("  warp revoke\n")
+	out.Valuf("  warp revoke goofy\n")
+	out.Valuf("  warp revoke guest_JpJP50EIas9cOfwo\n")
 	out.Normf("\n")
 }
 
 // Parse parses the arguments passed to the command.
-func (c *Authorize) Parse(
+func (c *Revoke) Parse(
 	ctx context.Context,
 	args []string,
 ) error {
-	if len(args) == 0 {
-		return errors.Trace(
-			errors.Newf("Username or token required."),
-		)
-	} else {
+	if len(args) > 0 {
 		c.usernameOrToken = args[0]
 	}
 
@@ -87,7 +75,7 @@ func (c *Authorize) Parse(
 }
 
 // Execute the command or return a human-friendly error.
-func (c *Authorize) Execute(
+func (c *Revoke) Execute(
 	ctx context.Context,
 ) error {
 	args := []string{}
@@ -100,18 +88,22 @@ func (c *Authorize) Execute(
 		return errors.Trace(err)
 	}
 
-	matches := 0
+	match := false
 	for _, user := range result.State.Users {
 		if !user.Hosting {
 			if user.Username == c.usernameOrToken ||
 				user.Token == c.usernameOrToken {
-				matches += 1
+				match = true
+				args = append(args, user.Token)
+			}
+			if c.usernameOrToken == "" && user.Mode&warp.ModeShellWrite != 0 {
+				match = true
 				args = append(args, user.Token)
 			}
 		}
 	}
 
-	if matches == 0 {
+	if c.usernameOrToken != "" && !match {
 		return errors.Trace(
 			errors.Newf(
 				"Username or token not found: %s. Use `warp state` to "+
@@ -119,18 +111,10 @@ func (c *Authorize) Execute(
 				c.usernameOrToken,
 			),
 		)
-	} else if matches > 1 {
-		return errors.Trace(
-			errors.Newf(
-				"Username ambiguous, please provide a user token instead. " +
-					"Warp clients user tokens can be retrieved with " +
-					"`warp state`.",
-			),
-		)
 	}
 
 	result, err = cli.RunLocalCommand(ctx, warp.Command{
-		Type: warp.CmdTpAuthorize,
+		Type: warp.CmdTpRevoke,
 		Args: args,
 	})
 	if err != nil {
