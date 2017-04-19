@@ -6,7 +6,7 @@
                   /_/        v0.0.2
 ```
 
-#### `warp` lets you share your terminal with one simple command
+#### `warp` lets you securely share your terminal with one simple command
 
 `warp` is designed and optimized for high-bandwidth remote interactions between
 developers.
