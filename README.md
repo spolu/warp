@@ -131,4 +131,4 @@ that reason it is recommended to run `warp connect` from a new terminal window.
 #### Development of warp
 
 Development of `warp` is generally broadcasted in **warp-dev**. Feel free to
-connect at any time.
+try to connect at any time.
