@@ -8,8 +8,12 @@
 
 #### `warp` lets you share your terminal with one simple command
 
-`warp` is designed and optimized for high-bandwidth interactions between
+`warp` is designed and optimized for high-bandwidth remote interactions between
 developers.
+
+Once connected to your warp clients will see your terminal exactly as if they
+were sitting next to you. You can also grant them write access, which is ~the
+same as handing them your keyboard.
 
 ## Usage
 
@@ -93,10 +97,9 @@ daemon it is connected to to enforce the read/write policy of clients.
 - [x] *v0.0.2 "bare"*
   - bare functionalities (see [TODO](TODO))
 - [ ] *v0.1.0 "safe"*
-  - TLS
   - PROMPT support
   - persisted user token/secret
-  - graceful host reconnect
+  - graceful host reconnection
 - [ ] *v0.2.0 "chat"*
   - `warp chat :warp` lets you voice-over a warp
 - [ ] *future releases*
