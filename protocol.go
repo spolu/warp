@@ -5,7 +5,7 @@ package warp
 //
 
 // Version is the current warp version.
-var Version = "0.0.1"
+var Version = "0.0.2"
 
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"

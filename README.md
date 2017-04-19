@@ -3,7 +3,7 @@
  | | /| / / __ `/ ___/ __ \
  | |/ |/ / /_/ / /  / /_/ /
  |__/|__/\__,_/_/  / .___/ 
-                  /_/        v0.0.1
+                  /_/        v0.0.2 "bare"
 ```
 
 #### `warp` lets you instantly share your terminal directly from your machine
@@ -90,7 +90,7 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 ## Roadmap
 
-- [ ] *v0.0.2 "bare"*
+- [x] *v0.0.2 "bare"*
   - bare functionalities (see [TODO](TODO))
 - [ ] *v0.1.0 "safe"*
   - TLS
