@@ -3,10 +3,10 @@
  | | /| / / __ `/ ___/ __ \
  | |/ |/ / /_/ / /  / /_/ /
  |__/|__/\__,_/_/  / .___/ 
-                  /_/        v0.0.2 "bare"
+                  /_/        v0.0.2
 ```
 
-#### `warp` lets you instantly share your terminal directly from your machine
+#### `warp` lets you share your terminal with one simple command
 
 `warp` is designed and optimized for high-bandwidth interactions between
 developers.
