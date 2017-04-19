@@ -1,8 +1,6 @@
 # v0.1.0 "bare"
 
-  [ ] TLS
-  [ ] GoExit and proper cancellation and deferral
-      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
+  [x] TLS
   [x] Send version as part of Hello
   [x] in-warp commands
     [x] set env __WARP=
@@ -22,6 +20,8 @@
 
 # v0.1.1 "safe"
 
+  [ ] GoExit and proper cancellation and deferral
+      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] generate and persists user/secret in ~/.warp
   [ ] graceful host reconnection (closes warp for clients but auto reconnects)

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -34,6 +35,7 @@ func init() {
 // Open spawns a new shared terminal.
 type Open struct {
 	shell string
+	noTLS bool
 
 	address  string
 	warp     string
@@ -86,6 +88,7 @@ func (c *Open) Help(
 func (c *Open) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if len(args) == 0 {
 		c.warp = token.RandStr()
@@ -99,9 +102,16 @@ func (c *Open) Parse(
 		)
 	}
 
+	if _, ok := flags["insecure"]; ok {
+		c.noTLS = true
+	}
+
 	c.address = warp.DefaultAddress
 	if os.Getenv("WARPD_ADDRESS") != "" {
 		c.address = os.Getenv("WARPD_ADDRESS")
+	}
+	if os.Getenv("WARPD_NO_TLS") != "" {
+		c.noTLS = true
 	}
 
 	c.shell = "/bin/bash"
@@ -141,12 +151,27 @@ func (c *Open) Execute(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	conn, err := net.Dial("tcp", c.address)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Connection error: %v", err),
-		)
+	var conn net.Conn
+	var err error
+
+	if c.noTLS {
+		conn, err = net.Dial("tcp", c.address)
+		if err != nil {
+			return errors.Trace(
+				errors.Newf("Connection error: %v", err),
+			)
+		}
+	} else {
+		tlsConfig := &tls.Config{}
+
+		conn, err = tls.Dial("tcp", c.address, tlsConfig)
+		if err != nil {
+			return errors.Trace(
+				errors.Newf("Connection error: %v", err),
+			)
+		}
 	}
+	defer conn.Close()
 
 	c.ss, err = cli.NewSession(
 		ctx, c.session, c.warp, warp.SsTpHost, c.username, cancel, conn,

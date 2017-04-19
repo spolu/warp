@@ -53,6 +53,7 @@ func (c *State) Help(
 func (c *State) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
 		return errors.Trace(

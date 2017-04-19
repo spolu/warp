@@ -80,6 +80,7 @@ func (c *Help) Help(
 func (c *Help) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if len(args) == 0 {
 		c.Command = NewHelp()

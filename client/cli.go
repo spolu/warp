@@ -19,8 +19,8 @@ type Command interface {
 	// Help prints out the help message for the command.
 	Help(context.Context)
 
-	// Parse the arguments passed to the command.
-	Parse(context.Context, []string) error
+	// Parse the arguments and flags passed to the command.
+	Parse(context.Context, []string, map[string]string) error
 
 	// Execute the command or return a human-friendly error.
 	Execute(context.Context) error
@@ -54,6 +54,8 @@ func New(
 			s := strings.Split(a, "=")
 			if len(s) == 2 {
 				flags[s[0]] = s[1]
+			} else if len(s) == 1 {
+				flags[s[0]] = "true"
 			}
 		} else {
 			args = append(args, strings.TrimSpace(a))
@@ -81,7 +83,7 @@ func (c *Cli) Run() error {
 		command = r()
 	}
 
-	err := command.Parse(c.Ctx, args)
+	err := command.Parse(c.Ctx, args, c.Flags)
 	if err != nil {
 		command.Help(c.Ctx)
 		return errors.Trace(err)

@@ -60,6 +60,7 @@ func (c *Revoke) Help(
 func (c *Revoke) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if len(args) > 0 {
 		c.usernameOrToken = args[0]

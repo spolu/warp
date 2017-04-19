@@ -68,6 +68,7 @@ func (c *Authorize) Help(
 func (c *Authorize) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if len(args) == 0 {
 		return errors.Trace(

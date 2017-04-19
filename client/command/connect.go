@@ -2,8 +2,8 @@ package command
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
-	"net"
 	"os"
 	"os/user"
 
@@ -28,6 +28,8 @@ func init() {
 
 // Connect connects to a shared terminal.
 type Connect struct {
+	insecureTLS bool
+
 	address  string
 	warp     string
 	session  warp.Session
@@ -73,6 +75,7 @@ func (c *Connect) Help(
 func (c *Connect) Parse(
 	ctx context.Context,
 	args []string,
+	flags map[string]string,
 ) error {
 	if len(args) == 0 {
 		return errors.Trace(
@@ -86,6 +89,12 @@ func (c *Connect) Parse(
 		return errors.Trace(
 			errors.Newf("Malformed warp ID: %s", c.warp),
 		)
+	}
+
+	if _, ok := flags["insecure"]; ok {
+		c.insecureTLS = true
+	} else {
+		c.insecureTLS = false
 	}
 
 	c.address = warp.DefaultAddress
@@ -116,12 +125,17 @@ func (c *Connect) Execute(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	conn, err := net.Dial("tcp", c.address)
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: c.insecureTLS,
+	}
+
+	conn, err := tls.Dial("tcp", c.address, tlsConfig)
 	if err != nil {
 		return errors.Trace(
 			errors.Newf("Connection to warpd failed: %v.", err),
 		)
 	}
+	defer conn.Close()
 
 	c.ss, err = cli.NewSession(
 		ctx,

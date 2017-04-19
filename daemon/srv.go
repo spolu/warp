@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"sync"
@@ -13,7 +14,9 @@ import (
 
 // Srv represents a running warpd server.
 type Srv struct {
-	address string
+	address  string
+	certFile string
+	keyFile  string
 
 	warps map[string]*Warp
 	mutex *sync.Mutex
@@ -23,11 +26,15 @@ type Srv struct {
 func NewSrv(
 	ctx context.Context,
 	address string,
+	certFile string,
+	keyFile string,
 ) *Srv {
 	return &Srv{
-		address: address,
-		warps:   map[string]*Warp{},
-		mutex:   &sync.Mutex{},
+		address:  address,
+		certFile: certFile,
+		keyFile:  keyFile,
+		warps:    map[string]*Warp{},
+		mutex:    &sync.Mutex{},
 	}
 }
 
@@ -35,13 +42,43 @@ func NewSrv(
 func (s *Srv) Run(
 	ctx context.Context,
 ) error {
-	ln, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return errors.Trace(err)
+	var ln net.Listener
+
+	if s.certFile != "" && s.keyFile != "" {
+		cer, err := tls.LoadX509KeyPair(s.certFile, s.keyFile)
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		tlsConfig := &tls.Config{
+			Certificates:             []tls.Certificate{cer},
+			MinVersion:               tls.VersionTLS12,
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			PreferServerCipherSuites: true,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			},
+		}
+
+		ln, err = tls.Listen("tcp", s.address, tlsConfig)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		logging.Logf(ctx,
+			"Listening: address=%s tls=true cert_file=%s key_file=%s",
+			s.address, s.certFile, s.keyFile)
+	} else {
+		var err error
+		ln, err = net.Listen("tcp", s.address)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		logging.Logf(ctx, "Listening: address=%s tls=false", s.address)
 	}
 	defer ln.Close()
-
-	logging.Logf(ctx, "Listening: address=%s", s.address)
 
 	for {
 		conn, err := ln.Accept()
