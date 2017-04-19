@@ -46,6 +46,11 @@ type Open struct {
 	pty *os.File
 	ss  *cli.Session
 	srv *cli.Srv
+
+	updC chan warp.HostUpdate
+	errC chan error
+	outC chan []byte
+	incC chan []byte
 }
 
 // NewOpen constructs and initializes the command.
@@ -151,50 +156,8 @@ func (c *Open) Execute(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	var conn net.Conn
-	var err error
-
-	if c.noTLS {
-		conn, err = net.Dial("tcp", c.address)
-		if err != nil {
-			return errors.Trace(
-				errors.Newf("Connection error: %v", err),
-			)
-		}
-	} else {
-		tlsConfig := &tls.Config{}
-
-		conn, err = tls.Dial("tcp", c.address, tlsConfig)
-		if err != nil {
-			return errors.Trace(
-				errors.Newf("Connection error: %v", err),
-			)
-		}
-	}
-	defer conn.Close()
-
-	c.ss, err = cli.NewSession(
-		ctx, c.session, c.warp, warp.SsTpHost, c.username, cancel, conn,
-	)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	// Close and reclaims all session related state.
-	defer c.ss.TearDown()
-
 	// Build the local command server.
 	c.srv = cli.NewSrv(ctx, c.ss)
-
-	// Listen for errors.
-	go func() {
-		if e, err := c.ss.DecodeError(ctx); err == nil {
-			c.ss.ErrorOut(
-				fmt.Sprintf("Received %s", e.Code),
-				errors.Newf(e.Message),
-			)
-		}
-		c.ss.TearDown()
-	}()
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -204,36 +167,10 @@ func (c *Open) Execute(
 		)
 	}
 
-	// Send initial host update.
-	cols, rows, err := terminal.GetSize(stdin)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to retrieve the terminal size: %v.", err),
-		)
-	}
-
-	if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
-		Warp:       c.warp,
-		From:       c.session,
-		WindowSize: warp.Size{Rows: rows, Cols: cols},
-	}); err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to send initial host update: %v.", err),
-		)
-	}
-
-	// Wait for a first state update from warpd.
-	if st, err := c.ss.DecodeState(ctx); err != nil {
-		// Let's not print any error here as we should have received an error
-		// from the server.
-		return nil
-	} else {
-		if err := c.ss.State().Update(*st, true); err != nil {
-			return errors.Trace(
-				errors.Newf("Failed to apply initial state update: %v.", err),
-			)
-		}
-	}
+	c.updC = make(chan warp.HostUpdate)
+	c.errC = make(chan error)
+	c.incC = make(chan []byte)
+	c.outC = make(chan []byte)
 
 	out.Normf("Opened warp: ")
 	out.Valuf("%s\n", c.warp)
@@ -372,6 +309,136 @@ func (c *Open) Execute(
 
 	<-ctx.Done()
 
+	return nil
+}
+
+// ReconnectLoop handles reconnecting the host to warpd. Each time the
+// connection drops, the associated Session is destroyed and another one is
+// created as a reconnection is attempted.
+// Errors are returned during the first iteration of the reconnect loop. On
+// subsequent reconnect, only warpd generated errors are returned.
+func (c *Open) ConnLoop(
+	ctx context.Context,
+) error {
+	first := true
+	for {
+		var conn net.Conn
+		var err error
+
+		if c.noTLS {
+			conn, err = net.Dial("tcp", c.address)
+			if err != nil {
+				if first {
+					return errors.Trace(
+						errors.Newf("Connection error: %v", err),
+					)
+				} else {
+					// Silentluy ignore and attempt a reconnect.
+					continue
+				}
+			}
+		} else {
+			tlsConfig := &tls.Config{}
+
+			conn, err = tls.Dial("tcp", c.address, tlsConfig)
+			if err != nil {
+				if first {
+					return errors.Trace(
+						errors.Newf("Connection error: %v", err),
+					)
+				} else {
+					// Silentluy ignore and attempt a reconnect.
+					continue
+				}
+			}
+		}
+		defer conn.Close()
+
+		err = c.ManageSession(ctx, conn, !first)
+		if err != nil {
+			return errors.Trace(
+				errors.Newf("Connection error: %v", err),
+			)
+		}
+		first = false
+	}
+}
+
+// ManageSession creates an manage a session. It
+func (c *Open) ManageSession(
+	ctx context.Context,
+	conn net.Conn,
+	warpdErrOnly bool,
+) error {
+	// This ctx can be canceled by the session or its parent context.
+	ctx, cancel := context.WithCancel(ctx)
+
+	ss, err := cli.NewSession(
+		ctx, c.session, c.warp, warp.SsTpHost, c.username, cancel, conn,
+	)
+	if err != nil {
+		if !warpdErrOnly {
+			return errors.Trace(err)
+		} else {
+			return nil
+		}
+	}
+	// Close and reclaims all session related state.
+	defer ss.TearDown()
+
+	// errChan is used to collect errors from the various go routines involved
+	// in the session. It either receive an error or gets closed.
+	errChan := make(chan error)
+
+	// Listen for errors.
+	go func() {
+		if e, err := c.ss.DecodeError(ctx); err == nil {
+			errChan <- errors.Newf(
+				"Received %s: %s", e.Code, e.Message,
+			)
+		}
+		c.ss.TearDown()
+	}()
+
+	// Send initial host update.
+	cols, rows, err := terminal.GetSize(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Failed to retrieve the terminal size: %v.", err),
+		)
+	}
+
+	if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
+		Warp:       c.warp,
+		From:       c.session,
+		WindowSize: warp.Size{Rows: rows, Cols: cols},
+	}); err != nil {
+		if !warpdErrOnly {
+			return errors.Trace(
+				errors.Newf("Failed to send initial host update: %v.", err),
+			)
+		} else {
+			return nil
+		}
+	}
+
+	// Wait for a first state update from warpd.
+	if st, err := c.ss.DecodeState(ctx); err != nil {
+		// Let's not print any error here as we should have received an error
+		// from the server.
+		return nil
+	} else {
+		if err := c.ss.State().Update(*st, true); err != nil {
+			return errors.Trace(
+				errors.Newf("Failed to apply initial state update: %v.", err),
+			)
+		}
+	}
+
+	err, _ = <-errChan
+	if err != nil {
+		return errors.Trace(err)
+	}
 	return nil
 }
 
