@@ -12,8 +12,8 @@
 developers.
 
 Once connected to your warp clients will see your terminal exactly as if they
-were sitting next to you. You can also grant them write access, which is ~the
-same as handing them your keyboard.
+were sitting next to you. You can also grant them write access, the remote
+equivalent of handing them your keyboard.
 
 ## Usage
 
