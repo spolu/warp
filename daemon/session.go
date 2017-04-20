@@ -98,7 +98,7 @@ func NewSession(
 
 	logging.Logf(ctx,
 		"Session hello received: session=%s type=%s username=%s",
-		ss.ToString(), hello.Warp, hello.Type, hello.Username,
+		ss.ToString(), hello.Type, hello.Username,
 	)
 
 	// Opens error channel errorC.
