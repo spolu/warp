@@ -160,10 +160,10 @@ func (w *Warp) rcvHostData(
 ) {
 	sessions := w.CientSessions(ctx)
 	for _, s := range sessions {
-		logging.Logf(ctx,
-			"Sending data to session: session=%s size=%d",
-			s.ToString(), len(data),
-		)
+		// logging.Logf(ctx,
+		// 	"Sending data to session: session=%s size=%d",
+		// 	s.ToString(), len(data),
+		// )
 		_, err := s.dataC.Write(data)
 		if err != nil {
 			// If we fail to write to a session, send an internal error there
@@ -263,10 +263,10 @@ func (w *Warp) handleHost(
 	// Receive host data.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			logging.Logf(ctx,
-				"Received data from host: session=%s size=%d",
-				ss.ToString(), len(data),
-			)
+			// logging.Logf(ctx,
+			// 	"Received data from host: session=%s size=%d",
+			// 	ss.ToString(), len(data),
+			// )
 			w.rcvHostData(ctx, ss, data)
 		}, ss.dataC)
 		ss.SendInternalError(ctx)
@@ -278,10 +278,10 @@ func (w *Warp) handleHost(
 	DATALOOP:
 		for {
 			buf, ok := <-w.data
-			logging.Logf(ctx,
-				"Sending data to host: session=%s size=%d",
-				ss.ToString(), len(buf),
-			)
+			// logging.Logf(ctx,
+			// 	"Sending data to host: session=%s size=%d",
+			// 	ss.ToString(), len(buf),
+			// )
 			_, err := ss.dataC.Write(buf)
 			if err != nil {
 				break DATALOOP
@@ -359,10 +359,10 @@ func (w *Warp) handleShellClient(
 	// Receive shell client data.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			logging.Logf(ctx,
-				"Received data from client: session=%s size=%d",
-				ss.ToString(), len(data),
-			)
+			// logging.Logf(ctx,
+			// 	"Received data from client: session=%s size=%d",
+			// 	ss.ToString(), len(data),
+			// )
 			w.rcvShellClientData(ctx, ss, data)
 		}, ss.dataC)
 		ss.SendInternalError(ctx)
