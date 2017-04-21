@@ -20,16 +20,28 @@
 
 # v0.1.0 "safe"
 
+  [x] graceful host reconnection (closes warp for clients but auto reconnects)
+  [x] client session and error handling refactor
+  [ ] generate and persists user/secret in ~/.warp
+  [ ] confirmation on warp authorize (also show warpd ID)
+  [ ] better PROMPT support for zsh, csh / linux
   [ ] GoExit and proper cancellation and deferral
       http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
-  [ ] confirmation on warp authorize (also show warpd ID)
-  [ ] generate and persists user/secret in ~/.warp
-  [ ] graceful host reconnection (closes warp for clients but auto reconnects)
-  [ ] better PROMPT support for zsh, csh / linux
 
 # v0.2.0 "chat"
 
-    [ ] chat dependent of warp being open
-    [ ] warp chat :id
-    [ ] minimal command system
-      [ ] /unmute /mute
+  [ ] chat dependent of warp being open
+  [ ] warp chat :id
+  [ ] minimal command system
+    [ ] /unmute /mute
+
+# NOTES
+
+  # PROMPT / Shell behavior
+
+    linux:
+      .bashrc is loaded
+      PROMPT is innefective
+    mac:
+      .profile not loaded
+      PROMPT works

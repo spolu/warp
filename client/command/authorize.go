@@ -101,8 +101,18 @@ func (c *Authorize) Execute(
 		return errors.Trace(err)
 	}
 
+	if result.Disconnected {
+		return errors.Trace(
+			errors.Newf(
+				"The warp is currently disconnected. No client has access to " +
+					"it and all previously authorized users will be revoked " +
+					"upon reconnection.",
+			),
+		)
+	}
+
 	matches := 0
-	for _, user := range result.State.Users {
+	for _, user := range result.SessionState.Users {
 		if !user.Hosting {
 			if user.Username == c.usernameOrToken ||
 				user.Token == c.usernameOrToken {
@@ -138,7 +148,7 @@ func (c *Authorize) Execute(
 		return errors.Trace(err)
 	}
 
-	OutState(ctx, result.State)
+	PrintSessionState(ctx, result.Disconnected, result.SessionState)
 
 	return nil
 }
