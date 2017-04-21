@@ -247,7 +247,7 @@ func (c *Connect) Execute(
 			os.Stdout.Write(data)
 		}, c.ss.DataC())
 		c.errC <- errors.Newf(
-			"Lost connection to warpd. You can attempt reconnect once you " +
+			"Lost connection to warpd. You can attempt to reconnect once you " +
 				"regain connetivity.",
 		)
 	}()
