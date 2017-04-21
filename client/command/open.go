@@ -36,8 +36,9 @@ func init() {
 
 // Open spawns a new shared terminal.
 type Open struct {
-	shell string
-	noTLS bool
+	shell       string
+	noTLS       bool
+	insecureTLS bool
 
 	address  string
 	warp     string
@@ -111,7 +112,10 @@ func (c *Open) Parse(
 		)
 	}
 
-	if _, ok := flags["insecure"]; ok {
+	if _, ok := flags["insecure_tls"]; ok {
+		c.insecureTLS = true
+	}
+	if _, ok := flags["no_tls"]; ok {
 		c.noTLS = true
 	}
 
@@ -373,7 +377,9 @@ func (c *Open) ConnLoop(
 				continue
 			}
 		} else {
-			tlsConfig := &tls.Config{}
+			tlsConfig := &tls.Config{
+				InsecureSkipVerify: c.insecureTLS,
+			}
 
 			conn, err = tls.Dial("tcp", c.address, tlsConfig)
 			if err != nil {

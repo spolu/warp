@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"os"
 	"os/user"
 
@@ -28,6 +29,7 @@ func init() {
 
 // Connect connects to a shared terminal.
 type Connect struct {
+	noTLS       bool
 	insecureTLS bool
 
 	address  string
@@ -93,10 +95,11 @@ func (c *Connect) Parse(
 		)
 	}
 
-	if _, ok := flags["insecure"]; ok {
+	if _, ok := flags["insecure_tls"]; ok {
 		c.insecureTLS = true
-	} else {
-		c.insecureTLS = false
+	}
+	if _, ok := flags["no_tls"]; ok {
+		c.noTLS = true
 	}
 
 	c.address = warp.DefaultAddress
@@ -127,15 +130,27 @@ func (c *Connect) Execute(
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.insecureTLS,
-	}
+	var conn net.Conn
+	var err error
 
-	conn, err := tls.Dial("tcp", c.address, tlsConfig)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Connection to warpd failed: %v.", err),
-		)
+	if c.noTLS {
+		conn, err = net.Dial("tcp", c.address)
+		if err != nil {
+			return errors.Trace(
+				errors.Newf("Connection to warpd failed: %v.", err),
+			)
+		}
+	} else {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: c.insecureTLS,
+		}
+
+		conn, err = tls.Dial("tcp", c.address, tlsConfig)
+		if err != nil {
+			return errors.Trace(
+				errors.Newf("Connection to warpd failed: %v.", err),
+			)
+		}
 	}
 	defer conn.Close()
 
@@ -179,6 +194,13 @@ func (c *Connect) Execute(
 	// c.errC is used to capture user facing errors generated from the
 	// goroutines.
 	c.errC = make(chan error)
+
+	// Wait for an user facing error on the c.errC channel.
+	var userErr error
+	go func() {
+		userErr = <-c.errC
+		cancel()
+	}()
 
 	// Listen for state updates.
 	go func() {
@@ -225,14 +247,11 @@ func (c *Connect) Execute(
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
 		}, c.ss.DataC())
+		c.errC <- errors.Newf(
+			"Lost connection to warpd. You can attempt reconnect once you " +
+				"regain connetivity.",
+		)
 		c.ss.TearDown()
-	}()
-
-	// Wait for an user facing error on the c.errC channel.
-	var userErr error
-	go func() {
-		userErr = <-c.errC
-		cancel()
 	}()
 
 	// Wait for cancellation to return and clean up everything.
