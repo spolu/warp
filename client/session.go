@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/gob"
+	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func NewSession(
 		KeepAliveInterval:      2 * time.Second,
 		ConnectionWriteTimeout: 10 * time.Second,
 		MaxStreamWindowSize:    256 * 1024,
-		LogOutput:              io.Discard,
+		LogOutput:              ioutil.Discard,
 	})
 	if err != nil {
 		return nil, errors.Trace(
