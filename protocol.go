@@ -21,7 +21,9 @@ type Mode uint32
 const (
 	ModeShellRead  Mode = 1
 	ModeShellWrite Mode = 1 << 1
-	// Future usecases: ModeSpeakRead|ModeSpeakWrite|ModeSpeakMuted
+	// Future usecases:
+	//   ModeVoicekRead|ModeVoicekWrite|ModeVoicekMuted
+	//   ModeVerified
 
 	DefaultHostMode = ModeShellRead | ModeShellWrite
 	DefaultUserMode = ModeShellRead
