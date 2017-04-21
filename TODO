@@ -20,7 +20,8 @@
 
 # v0.1.0 "safe"
 
-  [ ] graceful host reconnection (closes warp for clients but auto reconnects)
+  [x] graceful host reconnection (closes warp for clients but auto reconnects)
+  [x] client session and error handling refactor
   [ ] generate and persists user/secret in ~/.warp
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
@@ -35,13 +36,6 @@
     [ ] /unmute /mute
 
 # NOTES
-
-  # client session refactor
-
-    updC for size updates
-    errC for user visible errors
-    outC for stdout data
-    incC for client data
 
   # PROMPT / Shell behavior
 

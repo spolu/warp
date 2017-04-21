@@ -36,7 +36,7 @@ func (u *UserState) ProtocolUser() warp.User {
 // Returns a new warp state initialized by a hello message.
 func NewWarpState(
 	hello warp.SessionHello,
-) *Warp {
+) *WarpState {
 	w := &WarpState{
 		token: hello.Warp,
 		users: map[string]UserState{

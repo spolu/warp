@@ -36,6 +36,8 @@ type Connect struct {
 	username string
 
 	ss *cli.Session
+
+	errC chan error
 }
 
 // NewConnect constructs and initializes the command.
@@ -174,13 +176,17 @@ func (c *Connect) Execute(
 
 	// Main loops.
 
+	// c.errC is used to capture user facing errors generated from the
+	// goroutines.
+	c.errC = make(chan error)
+
 	// Listen for state updates.
 	go func() {
 		for {
 			if st, err := c.ss.DecodeState(ctx); err != nil {
 				break
 			} else {
-				if err := c.ss.State().Update(*st, false); err != nil {
+				if err := c.ss.UpdateState(*st, false); err != nil {
 					break
 				}
 				// Update the terminal size.
@@ -199,9 +205,8 @@ func (c *Connect) Execute(
 	// Listen for errors.
 	go func() {
 		if e, err := c.ss.DecodeError(ctx); err == nil {
-			c.ss.ErrorOut(
-				fmt.Sprintf("Received %s", e.Code),
-				errors.Newf(e.Message),
+			c.errC <- errors.Newf(
+				"Received %s: %s", e.Code, e.Message,
 			)
 		}
 		c.ss.TearDown()
@@ -223,8 +228,15 @@ func (c *Connect) Execute(
 		c.ss.TearDown()
 	}()
 
+	// Wait for an user facing error on the c.errC channel.
+	var userErr error
+	go func() {
+		userErr = <-c.errC
+		cancel()
+	}()
+
 	// Wait for cancellation to return and clean up everything.
 	<-ctx.Done()
 
-	return nil
+	return userErr
 }

@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -157,10 +158,17 @@ func (c *Open) Parse(
 // host session. The host session can be nil if the warp is currently
 // disconnected from warpd. It is protected by a lock as the host session is
 // set or unset by the ConnLoop.
-func (c *Open) HostSession() *Session {
+func (c *Open) HostSession() *cli.Session {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.ss
+}
+
+// WindowSize returns the current window size for the host terminal.
+func (c *Open) WindowSize() warp.Size {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.size
 }
 
 // Warp returns the warp name
@@ -175,7 +183,7 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Build the local command server.
-	c.srv = cli.NewSrv(ctx, c)
+	c.srv = cli.NewSrv(ctx, c.warp)
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -196,9 +204,11 @@ func (c *Open) Execute(
 	c.size = warp.Size{Rows: rows, Cols: cols}
 	c.mutex.Unlock()
 
+	// Display open message
 	out.Normf("Opened warp: ")
 	out.Valuf("%s\n", c.warp)
 
+	// Make the terminal raw.
 	old, err := terminal.MakeRaw(stdin)
 	if err != nil {
 		return errors.Trace(
@@ -242,12 +252,32 @@ func (c *Open) Execute(
 	// goroutines.
 	c.errC = make(chan error)
 
+	// Wait for an user facing error on the c.errC channel.
+	var userErr error
+	go func() {
+		userErr = <-c.errC
+		cancel()
+	}()
+
+	// Launch the connection loop.
+	go func() {
+		c.ConnLoop(ctx)
+		// Errors are sent to the errC, no need to cancel.
+	}()
+
+	// Launch the local command server.
+	go func() {
+		c.srv.Run(ctx)
+		cancel()
+	}()
+
 	// Forward window resizes to pty and updateC.
 	go func() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGWINCH)
 		for {
-			if c.ss.TornDown() {
+			ss := c.HostSession()
+			if ss != nil && ss.TornDown() {
 				break
 			}
 			cols, rows, err := terminal.GetSize(stdin)
@@ -276,7 +306,7 @@ func (c *Open) Execute(
 			c.size = warp.Size{Rows: rows, Cols: cols}
 			c.mutex.Unlock()
 
-			ss := c.HostSession()
+			ss = c.HostSession()
 			if ss != nil {
 				// Send an update and ignore errors.
 				ss.SendHostUpdate(ctx, warp.HostUpdate{
@@ -288,25 +318,19 @@ func (c *Open) Execute(
 
 			<-ch
 		}
-		c.ss.TearDown()
-	}()
-
-	// Launch the local command server.
-	go func() {
-		c.srv.Run(ctx)
+		cancel()
 	}()
 
 	// Multiplex shell to dataC, Stdout.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
-			c.mutex.Lock()
 			ss := c.HostSession()
-			c.mutex.Unlock()
 			if ss != nil {
-				ss.DataC().Write(data)
+				ss.WriteDataC(data)
 			}
 		}, c.pty)
+		cancel()
 	}()
 
 	// Multiplex Stdin to pty.
@@ -314,12 +338,6 @@ func (c *Open) Execute(
 		plex.Run(ctx, func(data []byte) {
 			c.pty.Write(data)
 		}, os.Stdin)
-	}()
-
-	// Wait for an user facing error on the c.errC channel.
-	var userErr error
-	go func() {
-		userErr = <-c.errC
 		cancel()
 	}()
 
@@ -335,7 +353,7 @@ func (c *Open) Execute(
 // subsequent reconnect, only warpd generated errors are returned.
 func (c *Open) ConnLoop(
 	ctx context.Context,
-) error {
+) {
 	first := true
 	for {
 		var conn net.Conn
@@ -345,13 +363,14 @@ func (c *Open) ConnLoop(
 			conn, err = net.Dial("tcp", c.address)
 			if err != nil {
 				if first {
-					return errors.Trace(
+					c.errC <- errors.Trace(
 						errors.Newf("Connection error: %v", err),
 					)
-				} else {
-					// Silentluy ignore and attempt a reconnect.
-					continue
+					break
 				}
+				// Silentluy ignore and attempt a reconnect 500ms after.
+				time.Sleep(500 * time.Millisecond)
+				continue
 			}
 		} else {
 			tlsConfig := &tls.Config{}
@@ -359,24 +378,26 @@ func (c *Open) ConnLoop(
 			conn, err = tls.Dial("tcp", c.address, tlsConfig)
 			if err != nil {
 				if first {
-					return errors.Trace(
+					c.errC <- errors.Trace(
 						errors.Newf("Connection error: %v", err),
 					)
-				} else {
-					// Silentluy ignore and attempt a reconnect.
-					continue
+					break
 				}
+				// Silentluy ignore and attempt a reconnect.
+				time.Sleep(500 * time.Millisecond)
+				continue
 			}
 		}
 		defer conn.Close()
 
-		err = c.ManageSession(ctx, conn, !first)
-		if err != nil {
-			return errors.Trace(
-				errors.Newf("Connection error: %v", err),
-			)
-		}
+		c.ManageSession(ctx, conn, !first)
 		first = false
+
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
 	}
 }
 
@@ -394,7 +415,7 @@ func (c *Open) ManageSession(
 	)
 	if err != nil {
 		if !warpdErrOnly {
-			c.errC <- errors.NewF(
+			c.errC <- errors.Newf(
 				"Failed to open session to warpd: %s", err,
 			)
 		}
@@ -416,10 +437,10 @@ func (c *Open) ManageSession(
 	if err := ss.SendHostUpdate(ctx, warp.HostUpdate{
 		Warp:       c.warp,
 		From:       c.session,
-		WindowSize: warp.Size{Rows: rows, Cols: cols},
+		WindowSize: c.WindowSize(),
 	}); err != nil {
 		if !warpdErrOnly {
-			c.errC < -errors.Trace(
+			c.errC <- errors.Trace(
 				errors.Newf("Failed to send initial host update: %v.", err),
 			)
 		}
@@ -432,7 +453,7 @@ func (c *Open) ManageSession(
 		// from the server.
 		return
 	} else {
-		if err := c.ss.State().Update(*st, true); err != nil {
+		if err := ss.UpdateState(*st, true); err != nil {
 			if !warpdErrOnly {
 				c.errC <- errors.Trace(
 					errors.Newf(
@@ -447,6 +468,7 @@ func (c *Open) ManageSession(
 	// The host session is ready
 	c.mutex.Lock()
 	c.ss = ss
+	c.srv.SetSession(ctx, ss)
 	c.mutex.Unlock()
 
 	// Main loops
@@ -457,7 +479,7 @@ func (c *Open) ManageSession(
 			if st, err := ss.DecodeState(ctx); err != nil {
 				break
 			} else {
-				if err := ss.State().Update(*st, true); err != nil {
+				if err := ss.UpdateState(*st, true); err != nil {
 					break
 				}
 			}
@@ -473,20 +495,20 @@ func (c *Open) ManageSession(
 	// Multiplex dataC to pty.
 	go func() {
 		plex.Run(ctx, func(data []byte) {
-			if c.ss.State().HostCanReceiveWrite() {
+			if ss.HostCanReceiveWrite() {
 				c.pty.Write(data)
 			}
-		}, c.ss.DataC())
-		c.ss.TearDown()
+		}, ss.DataC())
+		ss.TearDown()
 	}()
 
 	<-ctx.Done()
+	ss.TearDown()
 
 	c.mutex.Lock()
 	c.ss = nil
+	c.srv.SetSession(ctx, nil)
 	c.mutex.Unlock()
-
-	return nil
 }
 
 type winsize struct {

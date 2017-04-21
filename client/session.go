@@ -131,11 +131,24 @@ func NewSession(
 // Command methods
 
 // DataC returns the data channel. Using the dataC is not thread-safe and
-// should happen from only one go routine per i/o direction.
-func (ss *Session) WriteDataC() net.Conn {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+// should happen from only one go routine for reading only. Writing should go
+// through thread-safe WriteDataC.
+func (ss *Session) DataC() net.Conn {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
 	return ss.dataC
+}
+
+// WriteData writes to dataC in a thread-safe way, checking that the session is
+// not torn down.
+func (ss *Session) WriteDataC(
+	data []byte,
+) {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	if !ss.tornDown {
+		ss.dataC.Write(data)
+	}
 }
 
 // Warp returns the session warp token.
@@ -157,6 +170,57 @@ func (ss *Session) ProtocolState() warp.State {
 	ss.mutex.Lock()
 	defer ss.mutex.Unlock()
 	return ss.state.ProtocolState()
+}
+
+// GetMode returns the mode of a user.
+func (ss *Session) GetMode(
+	user string,
+) (*warp.Mode, error) {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.GetMode(user)
+}
+
+// SetMode sets the mode for a user.
+func (ss *Session) SetMode(
+	user string,
+	mode warp.Mode,
+) error {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.SetMode(user, mode)
+}
+
+// UpdateState updates the session state with a received warp.State.
+func (ss *Session) UpdateState(
+	state warp.State,
+	hosting bool,
+) error {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.Update(state, hosting)
+}
+
+// HostCanReceiverWrite retruns whether the host can receive write from any
+// shell client.
+func (ss *Session) HostCanReceiveWrite() bool {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.HostCanReceiveWrite()
+}
+
+// WindowSizse returns the current window size.
+func (ss *Session) WindowSize() warp.Size {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.WindowSize()
+}
+
+// Modes returns user modes.
+func (ss *Session) Modes() map[string]warp.Mode {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.Modes()
 }
 
 // TornDown returns the session tornDown value.

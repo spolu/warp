@@ -11,15 +11,14 @@ import (
 	"syscall"
 
 	"github.com/spolu/warp"
-	"github.com/spolu/warp/client/command"
 	"github.com/spolu/warp/lib/errors"
 )
 
 type Srv struct {
-	open *command.Open
-	path string
-
-	mutex *sync.Mutex
+	warp    string
+	session *Session
+	path    string
+	mutex   *sync.Mutex
 }
 
 // Path returns the unix socket path.
@@ -30,16 +29,30 @@ func (s *Srv) Path() string {
 // NewSrv constructs a Srv ready to start serving local requests.
 func NewSrv(
 	ctx context.Context,
-	open *command.Open,
+	warp string,
 ) *Srv {
 	return &Srv{
-		open: open,
+		warp:    warp,
+		session: nil,
 		path: path.Join(
 			os.TempDir(),
-			fmt.Sprintf("_warp_%s.sock", open.Warp()),
+			fmt.Sprintf("_warp_%s.sock", warp),
 		),
 		mutex: &sync.Mutex{},
 	}
+}
+
+// SetSession sets the session the srv should use. It is set to nil if the warp
+// is currently disconnected. The write to the session variable is protected by
+// a mutex that is locked when comands are executed (to avoid accessing a niled
+// out session).
+func (s *Srv) SetSession(
+	ctx context.Context,
+	session *Session,
+) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.session = session
 }
 
 // Run starts the local server.
@@ -74,8 +87,6 @@ func (s *Srv) handle(
 ) error {
 	defer conn.Close()
 
-	ss = s.open.HostSession()
-
 	commandR := gob.NewDecoder(conn)
 	commandW := gob.NewEncoder(conn)
 
@@ -104,11 +115,14 @@ func (s *Srv) handle(
 
 	// Always return the current state of the warp if connected or an
 	// indication of the disconnection otherwise.
-	if ss != nil {
-		result.State = ss.State().State(ctx)
+	s.mutex.Lock()
+	if s.session != nil {
+		result.SessionState = s.session.ProtocolState()
 	} else {
+		result.SessionState.Warp = s.warp
 		result.Disconnected = true
 	}
+	s.mutex.Unlock()
 
 	if err := commandW.Encode(result); err != nil {
 		return errors.Trace(
@@ -135,10 +149,16 @@ func (s *Srv) executeAuthorize(
 	ctx context.Context,
 	cmd warp.Command,
 ) warp.CommandResult {
-	ss := s.open.HostSession()
-	if ss == nil {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if s.session == nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
+			Error: warp.Error{
+				Code:    "disconnected",
+				Message: "The warp is currently disconnected.",
+			},
 		}
 	}
 
@@ -152,7 +172,7 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	mode, err := ss.State().GetMode(cmd.Args[0])
+	mode, err := s.session.GetMode(cmd.Args[0])
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -163,7 +183,7 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	err = ss.State().SetMode(cmd.Args[0], *mode|warp.ModeShellWrite)
+	err = s.session.SetMode(cmd.Args[0], *mode|warp.ModeShellWrite)
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -174,11 +194,11 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	if err := ss.SendHostUpdate(ctx, warp.HostUpdate{
-		Warp:       s.host.Warp(),
-		From:       s.host.Session(),
-		WindowSize: ss.State().WindowSize(),
-		Modes:      ss.State().Modes(),
+	if err := s.session.SendHostUpdate(ctx, warp.HostUpdate{
+		Warp:       s.session.Warp(),
+		From:       s.session.Session(),
+		WindowSize: s.session.WindowSize(),
+		Modes:      s.session.Modes(),
 	}); err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -200,8 +220,21 @@ func (s *Srv) executeRevoke(
 	ctx context.Context,
 	cmd warp.Command,
 ) warp.CommandResult {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if s.session == nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpRevoke,
+			Error: warp.Error{
+				Code:    "disconnected",
+				Message: "The warp is currently disconnected.",
+			},
+		}
+	}
+
 	for _, user := range cmd.Args {
-		mode, err := s.host.State().GetMode(user)
+		mode, err := s.session.GetMode(user)
 		if err != nil {
 			return warp.CommandResult{
 				Type: warp.CmdTpRevoke,
@@ -212,7 +245,7 @@ func (s *Srv) executeRevoke(
 			}
 		}
 
-		err = s.host.State().SetMode(user, *mode-*mode&warp.ModeShellWrite)
+		err = s.session.SetMode(user, *mode-*mode&warp.ModeShellWrite)
 		if err != nil {
 			return warp.CommandResult{
 				Type: warp.CmdTpRevoke,
@@ -224,11 +257,11 @@ func (s *Srv) executeRevoke(
 		}
 	}
 
-	if err := s.host.SendHostUpdate(ctx, warp.HostUpdate{
-		Warp:       s.host.Warp(),
-		From:       s.host.Session(),
-		WindowSize: s.host.State().WindowSize(),
-		Modes:      s.host.State().Modes(),
+	if err := s.session.SendHostUpdate(ctx, warp.HostUpdate{
+		Warp:       s.session.Warp(),
+		From:       s.session.Session(),
+		WindowSize: s.session.WindowSize(),
+		Modes:      s.session.Modes(),
 	}); err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpRevoke,
