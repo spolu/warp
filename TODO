@@ -25,13 +25,11 @@
   [ ] generate and persists user/secret in ~/.warp
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
-  [ ] GoExit and proper cancellation and deferral
-      http://stackoverflow.com/questions/27629380/how-to-exit-a-go-program-honoring-deferred-calls
 
-# v0.2.0 "chat"
+# v0.2.0 "voice"
 
-  [ ] chat dependent of warp being open
-  [ ] warp chat :id
+  [ ] voice dependent of warp being open
+  [ ] warp voice :id
   [ ] minimal command system
     [ ] /unmute /mute
 
