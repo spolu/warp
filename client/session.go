@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
@@ -50,7 +51,14 @@ func NewSession(
 	cancel func(),
 	conn net.Conn,
 ) (*Session, error) {
-	mux, err := yamux.Client(conn, nil)
+	mux, err := yamux.Client(conn, &yamux.Config{
+		AcceptBacklog:          256,
+		EnableKeepAlive:        true,
+		KeepAliveInterval:      2 * time.Second,
+		ConnectionWriteTimeout: 10 * time.Second,
+		MaxStreamWindowSize:    256 * 1024,
+		LogOutput:              io.Discard,
+	})
 	if err != nil {
 		return nil, errors.Trace(
 			errors.Newf("Failed to open session to warpd: %v", err),
