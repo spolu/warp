@@ -16,6 +16,6 @@ func main() {
 
 	err = cli.Run()
 	if err != nil {
-		out.Errof("\n[Error] %s\n", err.Error())
+		out.Errof("[Error] %s\n", err.Error())
 	}
 }

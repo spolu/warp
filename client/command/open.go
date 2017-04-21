@@ -347,6 +347,9 @@ func (c *Open) Execute(
 
 	<-ctx.Done()
 
+	// By then we probably show a prompt so lets add add a newline.
+	fmt.Printf("\n")
+
 	return userErr
 }
 
