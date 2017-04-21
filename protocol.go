@@ -1,5 +1,7 @@
 package warp
 
+import "regexp"
+
 //
 // Remote Warpd Protocol
 //
@@ -9,6 +11,9 @@ var Version = "0.0.2"
 
 // DefaultAddress to connect to
 var DefaultAddress = "warp.link:4242"
+
+// WarpRegexp warp token regular expression.
+var WarpRegexp = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,255}$")
 
 // Mode is used to represent the mode of a client (read/write).
 type Mode uint32
@@ -120,8 +125,8 @@ type Command struct {
 
 // CommandResult is used to send command result to the local client.
 type CommandResult struct {
-	Type   CommandType
-	State  State
-	Error  Error
-	Result map[string]string
+	Type         CommandType
+	Disconnected bool
+	SessionState State
+	Error        Error
 }

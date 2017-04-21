@@ -11,11 +11,12 @@ import (
 	"syscall"
 
 	"github.com/spolu/warp"
+	"github.com/spolu/warp/client/command"
 	"github.com/spolu/warp/lib/errors"
 )
 
 type Srv struct {
-	host *Session
+	open *command.Open
 	path string
 
 	mutex *sync.Mutex
@@ -29,13 +30,13 @@ func (s *Srv) Path() string {
 // NewSrv constructs a Srv ready to start serving local requests.
 func NewSrv(
 	ctx context.Context,
-	host *Session,
+	open *command.Open,
 ) *Srv {
 	return &Srv{
-		host: host,
+		open: open,
 		path: path.Join(
 			os.TempDir(),
-			fmt.Sprintf("_warp_%s.sock", host.State().token),
+			fmt.Sprintf("_warp_%s.sock", open.Warp()),
 		),
 		mutex: &sync.Mutex{},
 	}
@@ -73,6 +74,8 @@ func (s *Srv) handle(
 ) error {
 	defer conn.Close()
 
+	ss = s.open.HostSession()
+
 	commandR := gob.NewDecoder(conn)
 	commandW := gob.NewEncoder(conn)
 
@@ -99,8 +102,13 @@ func (s *Srv) handle(
 		)
 	}
 
-	// Always return the current state of the warp.
-	result.State = s.host.State().State(ctx)
+	// Always return the current state of the warp if connected or an
+	// indication of the disconnection otherwise.
+	if ss != nil {
+		result.State = ss.State().State(ctx)
+	} else {
+		result.Disconnected = true
+	}
 
 	if err := commandW.Encode(result); err != nil {
 		return errors.Trace(
@@ -127,6 +135,13 @@ func (s *Srv) executeAuthorize(
 	ctx context.Context,
 	cmd warp.Command,
 ) warp.CommandResult {
+	ss := s.open.HostSession()
+	if ss == nil {
+		return warp.CommandResult{
+			Type: warp.CmdTpAuthorize,
+		}
+	}
+
 	if len(cmd.Args) != 1 {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -137,7 +152,7 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	mode, err := s.host.State().GetMode(cmd.Args[0])
+	mode, err := ss.State().GetMode(cmd.Args[0])
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -148,7 +163,7 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	err = s.host.State().SetMode(cmd.Args[0], *mode|warp.ModeShellWrite)
+	err = ss.State().SetMode(cmd.Args[0], *mode|warp.ModeShellWrite)
 	if err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,
@@ -159,11 +174,11 @@ func (s *Srv) executeAuthorize(
 		}
 	}
 
-	if err := s.host.SendHostUpdate(ctx, warp.HostUpdate{
+	if err := ss.SendHostUpdate(ctx, warp.HostUpdate{
 		Warp:       s.host.Warp(),
 		From:       s.host.Session(),
-		WindowSize: s.host.State().WindowSize(),
-		Modes:      s.host.State().Modes(),
+		WindowSize: ss.State().WindowSize(),
+		Modes:      ss.State().Modes(),
 	}); err != nil {
 		return warp.CommandResult{
 			Type: warp.CmdTpAuthorize,

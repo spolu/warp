@@ -5,14 +5,14 @@ import (
 	"encoding/gob"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/yamux"
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/errors"
-	"github.com/spolu/warp/lib/out"
 )
 
+// Session represents a session to warpd as part of a client or a host. All
+// methods are thread-safe except the Decode* methods.
 type Session struct {
 	session warp.Session
 
@@ -31,39 +31,12 @@ type Session struct {
 	errorR  *gob.Decoder
 	dataC   net.Conn
 
-	state *Warp
+	state *WarpState
 
 	tornDown bool
 	cancel   func()
 
 	mutex *sync.Mutex
-}
-
-// State returns the session warp state.
-func (ss *Session) State() *Warp {
-	return ss.state
-}
-
-// Warp returns the session warp token.
-func (ss *Session) Warp() string {
-	return ss.warp
-}
-
-// Session returns the protocol session representation.
-func (ss *Session) Session() warp.Session {
-	return ss.session
-}
-
-// DataC returns the session data channel.
-func (ss *Session) DataC() net.Conn {
-	return ss.dataC
-}
-
-// TornDown returns the session tornDown value.
-func (ss *Session) TornDown() bool {
-	ss.mutex.Lock()
-	defer ss.mutex.Unlock()
-	return ss.tornDown
 }
 
 // NewSession sets up a session, opens the associated channels and return a
@@ -150,9 +123,47 @@ func NewSession(
 	}
 
 	// Setup warp state.
-	ss.state = NewWarp(hello)
+	ss.state = NewWarpState(hello)
 
 	return ss, nil
+}
+
+// Command methods
+
+// DataC returns the data channel. Using the dataC is not thread-safe and
+// should happen from only one go routine per i/o direction.
+func (ss *Session) WriteDataC() net.Conn {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return ss.dataC
+}
+
+// Warp returns the session warp token.
+func (ss *Session) Warp() string {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.warp
+}
+
+// Session returns the protocol session representation.
+func (ss *Session) Session() warp.Session {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.session
+}
+
+// State returns the session warp state.
+func (ss *Session) ProtocolState() warp.State {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.state.ProtocolState()
+}
+
+// TornDown returns the session tornDown value.
+func (ss *Session) TornDown() bool {
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+	return ss.tornDown
 }
 
 // TearDown tears down a session, closing and reclaiming channels.
@@ -167,24 +178,6 @@ func (ss *Session) TearDown() {
 	}
 }
 
-// ErrorOut is used to print an error with a slight delay to let the terminal
-// be resoted from raw modoe.
-func (ss *Session) ErrorOut(
-	message string,
-	err error,
-) {
-	go func() {
-		// Sleep for 50ms to give time to the terminal to be restored. The
-		// program will sleep for 100ms before exiting to give us a chance to
-		// execute.
-		time.Sleep(50 * time.Millisecond)
-		out.Errof(
-			"\n[Error] %s: %v\n",
-			message, err,
-		)
-	}()
-}
-
 // SendHostUpdate is used to safely concurrently sending host updates.
 func (ss *Session) SendHostUpdate(
 	ctx context.Context,
@@ -192,11 +185,17 @@ func (ss *Session) SendHostUpdate(
 ) error {
 	ss.mutex.Lock()
 	defer ss.mutex.Unlock()
-	if err := ss.updateW.Encode(update); err != nil {
-		return errors.Trace(err)
+	if !ss.tornDown {
+		if err := ss.updateW.Encode(update); err != nil {
+			return errors.Trace(err)
+		}
 	}
 	return nil
 }
+
+//
+// Non thread-safe methods.
+//
 
 // DecodeError attempts to decode an error from the errorC. This method is not
 // thread-safe.

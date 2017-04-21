@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -44,18 +45,20 @@ type Open struct {
 
 	cmd *exec.Cmd
 	pty *os.File
-	ss  *cli.Session
 	srv *cli.Srv
 
-	updC chan warp.HostUpdate
+	mutex *sync.Mutex
+	size  warp.Size
+	ss    *cli.Session
+
 	errC chan error
-	outC chan []byte
-	incC chan []byte
 }
 
 // NewOpen constructs and initializes the command.
 func NewOpen() cli.Command {
-	return &Open{}
+	return &Open{
+		mutex: &sync.Mutex{},
+	}
 }
 
 // Name returns the command name.
@@ -101,7 +104,7 @@ func (c *Open) Parse(
 		c.warp = args[0]
 	}
 
-	if !cli.WarpRegexp.MatchString(c.warp) {
+	if !warp.WarpRegexp.MatchString(c.warp) {
 		return errors.Trace(
 			errors.Newf("Malformed warp ID: %s", c.warp),
 		)
@@ -150,6 +153,21 @@ func (c *Open) Parse(
 	return nil
 }
 
+// HostSession accessor is used by the local server to retrieve the current
+// host session. The host session can be nil if the warp is currently
+// disconnected from warpd. It is protected by a lock as the host session is
+// set or unset by the ConnLoop.
+func (c *Open) HostSession() *Session {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.ss
+}
+
+// Warp returns the warp name
+func (c *Open) Warp() string {
+	return c.warp
+}
+
 // Execute the command or return a human-friendly error.
 func (c *Open) Execute(
 	ctx context.Context,
@@ -157,7 +175,7 @@ func (c *Open) Execute(
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Build the local command server.
-	c.srv = cli.NewSrv(ctx, c.ss)
+	c.srv = cli.NewSrv(ctx, c)
 
 	// Setup local term.
 	stdin := int(os.Stdin.Fd())
@@ -167,10 +185,16 @@ func (c *Open) Execute(
 		)
 	}
 
-	c.updC = make(chan warp.HostUpdate)
-	c.errC = make(chan error)
-	c.incC = make(chan []byte)
-	c.outC = make(chan []byte)
+	// Store initial sizxe of the terminal.
+	cols, rows, err := terminal.GetSize(stdin)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Failed to retrieve the terminal size: %v.", err),
+		)
+	}
+	c.mutex.Lock()
+	c.size = warp.Size{Rows: rows, Cols: cols}
+	c.mutex.Unlock()
 
 	out.Normf("Opened warp: ")
 	out.Valuf("%s\n", c.warp)
@@ -206,7 +230,7 @@ func (c *Open) Execute(
 	}
 	go func() {
 		c.cmd.Wait()
-		c.ss.TearDown()
+		cancel()
 	}()
 
 	// Closes the newly created pty.
@@ -214,28 +238,9 @@ func (c *Open) Execute(
 
 	// Main loops.
 
-	// Listen for state updates.
-	go func() {
-		for {
-			if st, err := c.ss.DecodeState(ctx); err != nil {
-				// Do not print that error as it will be triggered when
-				// disconnecting.
-				break
-			} else {
-				if err := c.ss.State().Update(*st, true); err != nil {
-					c.ss.ErrorOut("Failed to apply state update", err)
-					break
-				}
-			}
-
-			select {
-			case <-ctx.Done():
-				break
-			default:
-			}
-		}
-		c.ss.TearDown()
-	}()
+	// c.errC is used to capture user facing errors generated from the
+	// goroutines.
+	c.errC = make(chan error)
 
 	// Forward window resizes to pty and updateC.
 	go func() {
@@ -247,27 +252,38 @@ func (c *Open) Execute(
 			}
 			cols, rows, err := terminal.GetSize(stdin)
 			if err != nil {
-				c.ss.ErrorOut("Failed to retrieve the terminal size", err)
+				c.errC <- errors.Newf(
+					"Failed to retrieve the terminal size: %v", err,
+				)
 				break
 			}
 			if err := Setsize(c.pty, rows, cols); err != nil {
-				c.ss.ErrorOut("Failed to set pty size", err)
+				c.errC <- errors.Newf(
+					"Failed to set the pty size", err,
+				)
 				break
 			}
 			if err := syscall.Kill(
 				c.cmd.Process.Pid, syscall.SIGWINCH,
 			); err != nil {
-				c.ss.ErrorOut("Failed to signal SIGWINCH", err)
+				c.errC <- errors.Newf(
+					"Failed to signal SIGWINCH", err,
+				)
 				break
 			}
 
-			if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
-				Warp:       c.warp,
-				From:       c.session,
-				WindowSize: warp.Size{Rows: rows, Cols: cols},
-			}); err != nil {
-				c.ss.ErrorOut("Failed to send host update", err)
-				break
+			c.mutex.Lock()
+			c.size = warp.Size{Rows: rows, Cols: cols}
+			c.mutex.Unlock()
+
+			ss := c.HostSession()
+			if ss != nil {
+				// Send an update and ignore errors.
+				ss.SendHostUpdate(ctx, warp.HostUpdate{
+					Warp:       c.warp,
+					From:       c.session,
+					WindowSize: c.size,
+				})
 			}
 
 			<-ch
@@ -284,19 +300,13 @@ func (c *Open) Execute(
 	go func() {
 		plex.Run(ctx, func(data []byte) {
 			os.Stdout.Write(data)
-			c.ss.DataC().Write(data)
-		}, c.pty)
-		c.ss.TearDown()
-	}()
-
-	// Multiplex dataC to pty.
-	go func() {
-		plex.Run(ctx, func(data []byte) {
-			if c.ss.State().HostCanReceiveWrite() {
-				c.pty.Write(data)
+			c.mutex.Lock()
+			ss := c.HostSession()
+			c.mutex.Unlock()
+			if ss != nil {
+				ss.DataC().Write(data)
 			}
-		}, c.ss.DataC())
-		c.ss.TearDown()
+		}, c.pty)
 	}()
 
 	// Multiplex Stdin to pty.
@@ -304,12 +314,18 @@ func (c *Open) Execute(
 		plex.Run(ctx, func(data []byte) {
 			c.pty.Write(data)
 		}, os.Stdin)
-		c.ss.TearDown()
+	}()
+
+	// Wait for an user facing error on the c.errC channel.
+	var userErr error
+	go func() {
+		userErr = <-c.errC
+		cancel()
 	}()
 
 	<-ctx.Done()
 
-	return nil
+	return userErr
 }
 
 // ReconnectLoop handles reconnecting the host to warpd. Each time the
@@ -369,7 +385,7 @@ func (c *Open) ManageSession(
 	ctx context.Context,
 	conn net.Conn,
 	warpdErrOnly bool,
-) error {
+) {
 	// This ctx can be canceled by the session or its parent context.
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -378,67 +394,98 @@ func (c *Open) ManageSession(
 	)
 	if err != nil {
 		if !warpdErrOnly {
-			return errors.Trace(err)
-		} else {
-			return nil
+			c.errC <- errors.NewF(
+				"Failed to open session to warpd: %s", err,
+			)
 		}
+		return
 	}
 	// Close and reclaims all session related state.
 	defer ss.TearDown()
 
-	// errChan is used to collect errors from the various go routines involved
-	// in the session. It either receive an error or gets closed.
-	errChan := make(chan error)
-
 	// Listen for errors.
 	go func() {
-		if e, err := c.ss.DecodeError(ctx); err == nil {
-			errChan <- errors.Newf(
+		if e, err := ss.DecodeError(ctx); err == nil {
+			c.errC <- errors.Newf(
 				"Received %s: %s", e.Code, e.Message,
 			)
 		}
-		c.ss.TearDown()
+		ss.TearDown()
 	}()
 
-	// Send initial host update.
-	cols, rows, err := terminal.GetSize(stdin)
-	if err != nil {
-		return errors.Trace(
-			errors.Newf("Failed to retrieve the terminal size: %v.", err),
-		)
-	}
-
-	if err := c.ss.SendHostUpdate(ctx, warp.HostUpdate{
+	if err := ss.SendHostUpdate(ctx, warp.HostUpdate{
 		Warp:       c.warp,
 		From:       c.session,
 		WindowSize: warp.Size{Rows: rows, Cols: cols},
 	}); err != nil {
 		if !warpdErrOnly {
-			return errors.Trace(
+			c.errC < -errors.Trace(
 				errors.Newf("Failed to send initial host update: %v.", err),
 			)
-		} else {
-			return nil
 		}
+		return
 	}
 
 	// Wait for a first state update from warpd.
-	if st, err := c.ss.DecodeState(ctx); err != nil {
+	if st, err := ss.DecodeState(ctx); err != nil {
 		// Let's not print any error here as we should have received an error
 		// from the server.
-		return nil
+		return
 	} else {
 		if err := c.ss.State().Update(*st, true); err != nil {
-			return errors.Trace(
-				errors.Newf("Failed to apply initial state update: %v.", err),
-			)
+			if !warpdErrOnly {
+				c.errC <- errors.Trace(
+					errors.Newf(
+						"Failed to apply initial state update: %v.", err,
+					),
+				)
+			}
+			return
 		}
 	}
 
-	err, _ = <-errChan
-	if err != nil {
-		return errors.Trace(err)
-	}
+	// The host session is ready
+	c.mutex.Lock()
+	c.ss = ss
+	c.mutex.Unlock()
+
+	// Main loops
+
+	// Listen for state updates.
+	go func() {
+		for {
+			if st, err := ss.DecodeState(ctx); err != nil {
+				break
+			} else {
+				if err := ss.State().Update(*st, true); err != nil {
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
+		}
+		ss.TearDown()
+	}()
+
+	// Multiplex dataC to pty.
+	go func() {
+		plex.Run(ctx, func(data []byte) {
+			if c.ss.State().HostCanReceiveWrite() {
+				c.pty.Write(data)
+			}
+		}, c.ss.DataC())
+		c.ss.TearDown()
+	}()
+
+	<-ctx.Done()
+
+	c.mutex.Lock()
+	c.ss = nil
+	c.mutex.Unlock()
+
 	return nil
 }
 

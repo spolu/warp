@@ -85,7 +85,7 @@ func (c *Connect) Parse(
 		c.warp = args[0]
 	}
 
-	if !cli.WarpRegexp.MatchString(c.warp) {
+	if !warp.WarpRegexp.MatchString(c.warp) {
 		return errors.Trace(
 			errors.Newf("Malformed warp ID: %s", c.warp),
 		)
