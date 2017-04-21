@@ -437,7 +437,7 @@ func (c *Open) ManageSession(
 				"Received %s: %s", e.Code, e.Message,
 			)
 		}
-		ss.TearDown()
+		cancel()
 	}()
 
 	if err := ss.SendHostUpdate(ctx, warp.HostUpdate{
@@ -495,7 +495,7 @@ func (c *Open) ManageSession(
 			default:
 			}
 		}
-		ss.TearDown()
+		cancel()
 	}()
 
 	// Multiplex dataC to pty.

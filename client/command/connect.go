@@ -221,7 +221,7 @@ func (c *Connect) Execute(
 			default:
 			}
 		}
-		c.ss.TearDown()
+		cancel()
 	}()
 
 	// Listen for errors.
@@ -231,7 +231,6 @@ func (c *Connect) Execute(
 				"Received %s: %s", e.Code, e.Message,
 			)
 		}
-		c.ss.TearDown()
 	}()
 
 	// Multiplex Stdin to dataC.
@@ -239,7 +238,7 @@ func (c *Connect) Execute(
 		plex.Run(ctx, func(data []byte) {
 			c.ss.DataC().Write(data)
 		}, os.Stdin)
-		c.ss.TearDown()
+		cancel()
 	}()
 
 	// Multiplex dataC to Stdout.
@@ -251,7 +250,6 @@ func (c *Connect) Execute(
 			"Lost connection to warpd. You can attempt reconnect once you " +
 				"regain connetivity.",
 		)
-		c.ss.TearDown()
 	}()
 
 	// Wait for cancellation to return and clean up everything.
