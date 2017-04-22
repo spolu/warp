@@ -51,9 +51,11 @@ func (s *Srv) Run(
 		}
 
 		tlsConfig := &tls.Config{
-			Certificates:             []tls.Certificate{cer},
-			MinVersion:               tls.VersionTLS12,
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			Certificates: []tls.Certificate{cer},
+			MinVersion:   tls.VersionTLS12,
+			CurvePreferences: []tls.CurveID{
+				tls.CurveP521, tls.CurveP384, tls.CurveP256,
+			},
 			PreferServerCipherSuites: true,
 			CipherSuites: []uint16{
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
@@ -198,8 +200,8 @@ func (s *Srv) handleHost(
 	return nil
 }
 
-// handleShellClient handles a client connecting, retrieving the required warp or
-// erroring accordingly.
+// handleShellClient handles a client connecting, retrieving the required warp
+// or erroring accordingly.
 func (s *Srv) handleShellClient(
 	ctx context.Context,
 	ss *Session,

@@ -145,7 +145,11 @@ func (w *Warp) rcvShellClientData(
 ) {
 	var mode warp.Mode
 	w.mutex.Lock()
-	mode = w.clients[ss.session.User].mode
+	if ss.session.User == w.host.UserState.token {
+		mode = w.host.UserState.mode
+	} else {
+		mode = w.clients[ss.session.User].mode
+	}
 	w.mutex.Unlock()
 
 	if mode&warp.ModeShellWrite != 0 {
@@ -333,6 +337,14 @@ func (w *Warp) handleShellClient(
 	w.mutex.Lock()
 	isHostSession := false
 	if ss.session.User == w.host.UserState.token {
+		// Check that the host secret matches.
+		if ss.session.Secret != w.host.session.session.Secret {
+			ss.SendError(ctx,
+				"authorization_failed",
+				"Session secret mismatch.",
+			)
+			return
+		}
 		isHostSession = true
 		// If we have a session conflict, let's kill the old one.
 		if s, ok := w.host.UserState.sessions[ss.session.Token]; ok {
@@ -340,12 +352,27 @@ func (w *Warp) handleShellClient(
 		}
 		w.host.UserState.sessions[ss.session.Token] = ss
 	} else {
-		if _, ok := w.clients[ss.session.User]; !ok {
+		if c, ok := w.clients[ss.session.User]; !ok {
 			w.clients[ss.session.User] = &UserState{
 				token:    ss.session.User,
 				username: ss.username,
 				mode:     warp.DefaultUserMode,
 				sessions: map[string]*Session{},
+			}
+		} else {
+			any := func() *Session {
+				for _, s := range c.sessions {
+					return s
+				}
+				return nil
+			}
+			// Check that the host secret matches.
+			if ss.session.Secret != any().session.Secret {
+				ss.SendError(ctx,
+					"authorization_failed",
+					"Session secret mismatch.",
+				)
+				return
 			}
 		}
 		// If we have a session conflict, let's kill the old one.
