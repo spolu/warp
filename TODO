@@ -25,7 +25,7 @@
   [x] generate and persists user/secret in ~/.warp
   [x] verify secret match on connect
   [ ] test verification of secret match on connect
-  [ ] fix host client session handling (stack)
+  [ ] fix host client session handling (can't write)
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
 
