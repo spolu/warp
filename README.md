@@ -58,7 +58,7 @@ $ warp revoke stan
 
 ```shell
 # Requires Go to be installed on your machine. You can easily install Go from
-# https://golang.org/doc/install
+# https://golang.org/doc/install (this will install warp under `$GOPATH/bin`).
 
 go get -u github.com/spolu/warp/client/cmd/warp
 ```
