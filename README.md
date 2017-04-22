@@ -14,6 +14,17 @@ Once connected to your warp clients will see your terminal exactly as if they
 were sitting next to you. You can also grant them write access, the remote
 equivalent of handing them your keyboard.
 
+## Installation
+
+#### From source code
+
+```shell
+# Requires Go to be installed on your machine. You can easily install Go from
+# https://golang.org/doc/install (this will install warp under `$GOPATH/bin`).
+
+go get -u github.com/spolu/warp/client/cmd/warp
+```
+
 ## Usage
 
 Instantly start sharing your terminal (read-only) under warp ID **goofy-dev**
@@ -50,17 +61,6 @@ $ warp authorize stan
 Revoke previously granted write-access with:
 ```shell
 $ warp revoke stan
-```
-
-## Installation
-
-#### From source code
-
-```shell
-# Requires Go to be installed on your machine. You can easily install Go from
-# https://golang.org/doc/install (this will install warp under `$GOPATH/bin`).
-
-go get -u github.com/spolu/warp/client/cmd/warp
 ```
 
 ## Security
