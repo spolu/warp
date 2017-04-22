@@ -145,7 +145,11 @@ func (w *Warp) rcvShellClientData(
 ) {
 	var mode warp.Mode
 	w.mutex.Lock()
-	mode = w.clients[ss.session.User].mode
+	if ss.session.User == w.host.UserState.token {
+		mode = w.host.UserState.mode
+	} else {
+		mode = w.clients[ss.session.User].mode
+	}
 	w.mutex.Unlock()
 
 	if mode&warp.ModeShellWrite != 0 {

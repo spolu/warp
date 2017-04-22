@@ -24,7 +24,7 @@
   [x] client session and error handling refactor
   [x] generate and persists user/secret in ~/.warp
   [ ] verify secret match on connect
-  [ ] fix host client session handling (stack)
+  [x] fix host client session handling (stack)
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
 
