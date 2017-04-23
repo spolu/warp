@@ -16,7 +16,7 @@ var DefaultAddress = "warp.link:4242"
 var WarpRegexp = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,255}$")
 
 // Mode is used to represent the mode of a client (read/write).
-type Mode uint32
+type Mode uint64
 
 const (
 	ModeShellRead  Mode = 1
