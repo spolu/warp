@@ -18,7 +18,7 @@
   [x] prevent write at host level (if noone authorized at all)
   [x] protect warpd sessions with mutex (mostly teardown)
 
-# v0.1.0 "safe"
+# v0.0.3 "safe"
 
   [x] graceful host reconnection (closes warp for clients but auto reconnects)
   [x] client session and error handling refactor
@@ -32,7 +32,7 @@
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
 
-# v0.2.0 "voice"
+# v0.0.x "voice"
 
   [ ] voice dependent of warp being open
   [ ] warp voice :id

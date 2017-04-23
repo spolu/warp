@@ -95,13 +95,12 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 - [x] *v0.0.2 "bare"*
   - bare functionalities (see [TODO](TODO))
-- [ ] *v0.1.0 "safe"*
+- [ ] *v0.0.3 "safe"*
   - PROMPT support
   - persisted user token/secret
   - graceful host reconnection
-- [ ] *v0.2.0 "chat"*
-  - `warp chat :warp` lets you voice-over a warp
 - [ ] *future releases*
+  - `warp voice :warp` lets you voice-over a warp
   - terminal emulation
     - full redraw on connection
     - top status bar
