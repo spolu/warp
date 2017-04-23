@@ -20,7 +20,7 @@ equivalent of handing them your keyboard.
 
 ```shell
 # Requires Go to be installed on your machine. You can easily install Go from
-# https://golang.org/doc/install (this will install warp under `$GOPATH/bin`).
+# https://golang.org/doc/install
 
 go get -u github.com/spolu/warp/client/cmd/warp
 ```
