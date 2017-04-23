@@ -25,7 +25,7 @@ equivalent of handing them your keyboard.
 go get -u github.com/spolu/warp/client/cmd/warp
 ```
 
-See also [Troubleshooting warp's installation](https://github.com/spolu/warp/wiki/Troubleshooting-warp's-installation).
+See also [Troubleshooting your `warp` installation](https://github.com/spolu/warp/wiki/Troubleshooting-your-warp-installation).
 
 ## Usage
 
