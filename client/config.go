@@ -18,12 +18,17 @@ type Credentials struct {
 	Secret string `json:"secret"`
 }
 
-// CredentialsPath returns the crendentials path for the current environment.
-func CredentialsPath(
+// Config represents the local configuration for warp.
+type Config struct {
+	Credentials Credentials `json:"credentials"`
+}
+
+// ConfigPath returns the crendentials path for the current environment.
+func ConfigPath(
 	ctx context.Context,
 ) (*string, error) {
 	path, err := homedir.Expand(
-		"~/.warp/credentials.json",
+		"~/.warp/config.json",
 	)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -37,11 +42,11 @@ func CredentialsPath(
 	return &path, nil
 }
 
-// CurrentCredentials retrieves the current user by reading CredentialsPath.
-func CurrentCredentials(
+// RetrieveConfig retrieves the current user config by reading ConfigPath.
+func RetrieveConfig(
 	ctx context.Context,
-) (*Credentials, error) {
-	path, err := CredentialsPath(ctx)
+) (*Config, error) {
+	path, err := ConfigPath(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -55,7 +60,7 @@ func CurrentCredentials(
 		return nil, errors.Trace(err)
 	}
 
-	var c Credentials
+	var c Config
 	err = json.Unmarshal(raw, &c)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -64,21 +69,24 @@ func CurrentCredentials(
 	return &c, nil
 }
 
-// GenerateCredentials generates new credentials and store them.
-func GenerateCredentials(
+// GenerateConfig generates a new config and store it. As part of it, it
+// generates a new set of credentials.
+func GenerateConfig(
 	ctx context.Context,
-) (*Credentials, error) {
-	creds := &Credentials{
-		User:   token.New("guest"),
-		Secret: token.RandStr(),
+) (*Config, error) {
+	config := &Config{
+		Credentials: Credentials{
+			User:   token.New("guest"),
+			Secret: token.RandStr(),
+		},
 	}
 
-	path, err := CredentialsPath(ctx)
+	path, err := ConfigPath(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	formatted, err := json.MarshalIndent(creds, "", "  ")
+	formatted, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -88,25 +96,25 @@ func GenerateCredentials(
 		return nil, errors.Trace(err)
 	}
 
-	return creds, nil
+	return config, nil
 }
 
-// GetOrGenerateCredentials retrieves the current credentials or generate them.
-func GetOrGenerateCredentials(
+// RetrieveOrGenerateConfig retrieves the current config or generates it.
+func RetrieveOrGenerateConfig(
 	ctx context.Context,
-) (*Credentials, error) {
+) (*Config, error) {
 
-	creds, err := CurrentCredentials(ctx)
+	config, err := RetrieveConfig(ctx)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	if creds == nil {
-		creds, err = GenerateCredentials(ctx)
+	if config == nil {
+		config, err = GenerateConfig(ctx)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
 
-	return creds, nil
+	return config, nil
 }

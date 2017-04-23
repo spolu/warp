@@ -115,17 +115,17 @@ func (c *Connect) Parse(
 	}
 	c.username = user.Username
 
-	creds, err := cli.GetOrGenerateCredentials(ctx)
+	config, err := cli.RetrieveOrGenerateConfig(ctx)
 	if err != nil {
 		return errors.Trace(
-			errors.Newf("Error retrieving or generating credentials: %v", err),
+			errors.Newf("Error retrieving or generating config: %v", err),
 		)
 	}
 
 	c.session = warp.Session{
 		Token:  token.New("session"),
-		User:   creds.User,
-		Secret: creds.Secret,
+		User:   config.Credentials.User,
+		Secret: config.Credentials.Secret,
 	}
 
 	return nil

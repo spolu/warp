@@ -28,7 +28,7 @@
   [x] test verification of secret match on connect
   [x] fix verification of secret match on connect (stalls future connections)
   [x] protocol mode -> int64
-  [ ] credentials -> configuration
+  [x] credentials -> configuration
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
 
