@@ -112,7 +112,7 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 #### `warp` is not a fork of tmux
 
-`warp` is not a fork of tmux and is not a terminal emulator (though we might
+`warp` is not a fork of tmux[0] and is not a terminal emulator (though we might
 eventually get to terminal emulation to enhance the user experience). It really
 simply multiplexes stdin/stdout to raw ptys between host and clients. For that
 reason, if you connect to a warp already running a GUI-like application (tmux,
@@ -134,3 +134,8 @@ that reason it is recommended to run `warp connect` from a new terminal window.
 
 Development of `warp` is generally broadcasted in **warp-dev**. Feel free to
 try to connect at any time.
+
+-- 
+
+[0] You can run a warp from within tmux (or screen) or tmux from within a warp.
+It's also fine to run a warp from within a warp.
