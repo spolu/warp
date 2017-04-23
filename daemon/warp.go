@@ -343,6 +343,7 @@ func (w *Warp) handleShellClient(
 				"authorization_failed",
 				"Session secret mismatch.",
 			)
+			w.mutex.Unlock()
 			return
 		}
 		isHostSession = true
@@ -372,6 +373,7 @@ func (w *Warp) handleShellClient(
 					"authorization_failed",
 					"Session secret mismatch.",
 				)
+				w.mutex.Unlock()
 				return
 			}
 		}

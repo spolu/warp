@@ -25,7 +25,10 @@
   [x] generate and persists user/secret in ~/.warp
   [x] verify secret match on connect
   [x] fix host client session writing (expected: HostCanReceiveWrite)
-  [ ] test verification of secret match on connect
+  [x] test verification of secret match on connect
+  [x] fix verification of secret match on connect (stalls future connections)
+  [ ] credentials -> configuration
+  [ ] protocol mode -> int128
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] better PROMPT support for zsh, csh / linux
 
