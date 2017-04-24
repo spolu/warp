@@ -95,10 +95,12 @@ func (c *Connect) Parse(
 		)
 	}
 
-	if _, ok := flags["insecure_tls"]; ok {
+	if _, ok := flags["insecure_tls"]; ok ||
+		os.Getenv("WARPD_INSECURE_TLS") != "" {
 		c.insecureTLS = true
 	}
-	if _, ok := flags["no_tls"]; ok {
+	if _, ok := flags["no_tls"]; ok ||
+		os.Getenv("WARPD_NO_TLS") != "" {
 		c.noTLS = true
 	}
 

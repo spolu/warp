@@ -29,8 +29,9 @@
   [x] fix verification of secret match on connect (stalls future connections)
   [x] protocol mode -> int64
   [x] credentials -> configuration
+  [x] WARPD_NO_TLS env
   [ ] confirmation on warp authorize (also show warpd ID)
-  [ ] better PROMPT support for zsh, csh / linux
+  [ ] PROMPT support for bash, zsh, csh
 
 # v0.0.x "voice"
 

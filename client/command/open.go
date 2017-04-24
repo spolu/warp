@@ -112,10 +112,12 @@ func (c *Open) Parse(
 		)
 	}
 
-	if _, ok := flags["insecure_tls"]; ok {
+	if _, ok := flags["insecure_tls"]; ok ||
+		os.Getenv("WARPD_INSECURE_TLS") != "" {
 		c.insecureTLS = true
 	}
-	if _, ok := flags["no_tls"]; ok {
+	if _, ok := flags["no_tls"]; ok ||
+		os.Getenv("WARPD_NO_TLS") != "" {
 		c.noTLS = true
 	}
 
@@ -141,13 +143,13 @@ func (c *Open) Parse(
 	c.username = user.Username
 
 	// Sets the BASH prompt
-	prompt := fmt.Sprintf(
-		"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] "+
-			"\\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
-		c.warp,
-	)
-	os.Setenv("PS1", prompt)
-	os.Setenv("PROMPT", prompt)
+	// prompt := fmt.Sprintf(
+	// 	"\\[\033[01;31m\\][warp:%s]\\[\033[00m\\] "+
+	// 		"\\[\033[01;34m\\]\\W\\[\033[00m\\]\\$ ",
+	// 	c.warp,
+	// )
+	// os.Setenv("PS1", prompt)
+	// os.Setenv("PROMPT", prompt)
 
 	config, err := cli.RetrieveOrGenerateConfig(ctx)
 	if err != nil {
