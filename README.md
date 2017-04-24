@@ -11,7 +11,7 @@
 `warp` is designed for high-bandwidth interactions between developers.
 
 Once connected to your warp clients will see your terminal exactly as if they
-were sitting next to you. You can also grant them write access, the remote
+were sitting next to you. You can also grant them write access, the online
 equivalent of handing them your keyboard.
 
 ## Installation
