@@ -30,8 +30,10 @@
   [x] protocol mode -> int64
   [x] credentials -> configuration
   [x] WARPD_NO_TLS env
-  [ ] confirmation on warp authorize (also show warpd ID)
+  [x] confirmation on warp authorize (also show warpd ID)
   [ ] PROMPT support for bash, zsh, csh
+  [ ] docker image for quick trial
+  [ ] brew recipe
 
 # v0.0.x "voice"
 

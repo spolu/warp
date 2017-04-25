@@ -1,8 +1,10 @@
 package command
 
 import (
+	"bufio"
 	"context"
 	"os"
+	"strings"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/client"
@@ -111,13 +113,18 @@ func (c *Authorize) Execute(
 		)
 	}
 
+	username := ""
+	user := ""
+
 	matches := 0
-	for _, user := range result.SessionState.Users {
-		if !user.Hosting {
-			if user.Username == c.usernameOrToken ||
-				user.Token == c.usernameOrToken {
+	for _, u := range result.SessionState.Users {
+		if !u.Hosting {
+			if u.Username == c.usernameOrToken ||
+				u.Token == c.usernameOrToken {
 				matches += 1
-				args = append(args, user.Token)
+				args = append(args, u.Token)
+				username = u.Username
+				user = u.Token
 			}
 		}
 	}
@@ -140,6 +147,23 @@ func (c *Authorize) Execute(
 		)
 	}
 
+	out.Normf("You are about to authorize the following user to write to ")
+	out.Valuf("%s\n", os.Getenv(warp.EnvWarp))
+	out.Normf("  ID: ")
+	out.Boldf("%s", user)
+	out.Normf(" Username: ")
+	out.Valuf("%s\n", username)
+	out.Normf("Are you sure this is who you think this is? [Y/n]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	confirmation, _ := reader.ReadString('\n')
+	confirmation = strings.TrimSpace(confirmation)
+
+	if confirmation != "" && confirmation != "Y" && confirmation != "y" {
+		return errors.Trace(
+			errors.Newf("Authorizxation aborted by user."),
+		)
+	}
 	result, err = cli.RunLocalCommand(ctx, warp.Command{
 		Type: warp.CmdTpAuthorize,
 		Args: args,
@@ -147,6 +171,11 @@ func (c *Authorize) Execute(
 	if err != nil {
 		return errors.Trace(err)
 	}
+
+	out.Normf("\n")
+	out.Normf("Done! You can revoke authorizations at any time with ")
+	out.Boldf("warp revoke\n")
+	out.Normf("\n")
 
 	PrintSessionState(ctx, result.Disconnected, result.SessionState)
 
