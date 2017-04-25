@@ -44,7 +44,7 @@ func (c *Help) Help(
 	out.Normf("                   /_/        ")
 	out.Boldf("v%s\n", warp.Version)
 	out.Normf("\n")
-	out.Normf("  Instant terminal sharing directly from your machine.\n")
+	out.Normf("  Secure terminal sharing with one simple command.\n")
 	out.Normf("\n")
 	out.Normf("Usage:\n")
 	out.Boldf("  warp <command> [<args> ...]\n")

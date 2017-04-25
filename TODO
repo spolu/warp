@@ -32,6 +32,7 @@
   [x] WARPD_NO_TLS env
   [ ] confirmation on warp authorize (also show warpd ID)
   [ ] PROMPT support for bash, zsh, csh
+  [ ] docker image for quick trial
 
 # v0.0.x "voice"
 
