@@ -32,7 +32,7 @@
   [x] WARPD_NO_TLS env
   [x] confirmation on warp authorize (also show warpd ID)
   [ ] PROMPT support for bash, zsh, csh
-  [ ] docker image for quick trial
+  [ ] docker image for quick warp trial / warpd deployment
   [ ] brew recipe
 
 # v0.0.x "voice"

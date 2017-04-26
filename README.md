@@ -108,6 +108,7 @@ daemon it is connected to to enforce the read/write policy of clients.
     - full redraw on connection
     - top status bar
     - terminal truncation
+  - e2e encryption
   - warp signin and verified usernames
 
 ## Notes
