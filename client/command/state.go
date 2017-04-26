@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"os"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/client"
@@ -55,12 +54,6 @@ func (c *State) Parse(
 	args []string,
 	flags map[string]string,
 ) error {
-	if os.Getenv(warp.EnvWarp) == "" {
-		return errors.Trace(
-			errors.Newf("This command is only available from inside a warp."),
-		)
-	}
-
 	return nil
 }
 
@@ -68,6 +61,10 @@ func (c *State) Parse(
 func (c *State) Execute(
 	ctx context.Context,
 ) error {
+	err := cli.CheckEnvWarp(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	result, err := cli.RunLocalCommand(ctx, warp.Command{
 		Type: warp.CmdTpState,
