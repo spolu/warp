@@ -55,7 +55,7 @@ func (c *State) Parse(
 	args []string,
 	flags map[string]string,
 ) error {
-	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
+	if os.Getenv(warp.EnvWarp) == "" {
 		return errors.Trace(
 			errors.Newf("This command is only available from inside a warp."),
 		)

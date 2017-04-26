@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"encoding/gob"
+	"fmt"
 	"net"
 	"os"
+	"path"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/lib/errors"
@@ -17,9 +19,12 @@ func RunLocalCommand(
 	ctx context.Context,
 	cmd warp.Command,
 ) (*warp.CommandResult, error) {
-	path := os.Getenv(warp.EnvWarpUnixSocket)
+	p := path.Join(
+		os.TempDir(),
+		fmt.Sprintf("_warp_%s.sock", os.Getenv(warp.EnvWarp)),
+	)
 
-	conn, err := net.Dial("unix", path)
+	conn, err := net.Dial("unix", p)
 	if err != nil {
 		return nil, errors.Trace(
 			errors.Newf("Failed to connect to warpd: %v", err),

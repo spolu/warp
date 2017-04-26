@@ -80,7 +80,7 @@ func (c *Authorize) Parse(
 		c.usernameOrToken = args[0]
 	}
 
-	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
+	if os.Getenv(warp.EnvWarp) == "" {
 		return errors.Trace(
 			errors.Newf("This command is only available from inside a warp."),
 		)
