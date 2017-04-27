@@ -53,7 +53,8 @@ type Open struct {
 	size  warp.Size
 	ss    *cli.Session
 
-	errC chan error
+	errC  chan error
+	initC chan struct{}
 }
 
 // NewOpen constructs and initializes the command.
@@ -262,6 +263,11 @@ func (c *Open) Execute(
 	// goroutines.
 	c.errC = make(chan error)
 
+	// c.initC is used to signal that the warp was able to properly init
+	// without error. It is used to start the local server after we got a
+	// chance to receive any error from warpd.
+	c.initC = make(chan struct{})
+
 	// Wait for an user facing error on the c.errC channel.
 	var userErr error
 	go func() {
@@ -277,6 +283,7 @@ func (c *Open) Execute(
 
 	// Launch the local command server.
 	go func() {
+		<-c.initC
 		c.srv.Run(ctx)
 		cancel()
 	}()
@@ -477,6 +484,8 @@ func (c *Open) ManageSession(
 				)
 			}
 			return
+		} else {
+			c.initC <- struct{}{}
 		}
 	}
 
