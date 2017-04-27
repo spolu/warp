@@ -41,11 +41,16 @@ with:
 $ warp open goofy-dev
 ```
 
-From there, anyone can connect (read-only) to your warp with:
+This will create a new warp **goofy-dev** and will connect you to it locally
+with write-access. From there, anyone can connect (read-only) to your warp
+with:
 
 ```shell
 $ warp connect goofy-dev
 ```
+
+Creating a new warp spawns a new shell, and closing it is therefore as easy as
+killing that shell with `exit` or `CTRL-D`.
 
 #### Granting and revoking write-access
 
