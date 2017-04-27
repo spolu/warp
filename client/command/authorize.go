@@ -80,12 +80,6 @@ func (c *Authorize) Parse(
 		c.usernameOrToken = args[0]
 	}
 
-	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
-		return errors.Trace(
-			errors.Newf("This command is only available from inside a warp."),
-		)
-	}
-
 	return nil
 }
 
@@ -93,7 +87,10 @@ func (c *Authorize) Parse(
 func (c *Authorize) Execute(
 	ctx context.Context,
 ) error {
-	args := []string{}
+	err := cli.CheckEnvWarp(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	result, err := cli.RunLocalCommand(ctx, warp.Command{
 		Type: warp.CmdTpState,
@@ -115,7 +112,7 @@ func (c *Authorize) Execute(
 
 	username := ""
 	user := ""
-
+	args := []string{}
 	matches := 0
 	for _, u := range result.SessionState.Users {
 		if !u.Hosting {

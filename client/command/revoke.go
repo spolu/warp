@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"os"
 
 	"github.com/spolu/warp"
 	"github.com/spolu/warp/client"
@@ -66,12 +65,6 @@ func (c *Revoke) Parse(
 		c.usernameOrToken = args[0]
 	}
 
-	if os.Getenv(warp.EnvWarpUnixSocket) == "" {
-		return errors.Trace(
-			errors.Newf("This command is only available from inside a warp."),
-		)
-	}
-
 	return nil
 }
 
@@ -79,7 +72,10 @@ func (c *Revoke) Parse(
 func (c *Revoke) Execute(
 	ctx context.Context,
 ) error {
-	args := []string{}
+	err := cli.CheckEnvWarp(ctx)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	result, err := cli.RunLocalCommand(ctx, warp.Command{
 		Type: warp.CmdTpState,
@@ -99,6 +95,7 @@ func (c *Revoke) Execute(
 		)
 	}
 
+	args := []string{}
 	match := false
 	for _, user := range result.SessionState.Users {
 		if !user.Hosting {

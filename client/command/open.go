@@ -234,13 +234,10 @@ func (c *Open) Execute(
 	// Start shell.
 	c.cmd = exec.Command(c.shell)
 
-	// Set the warp env variables for the shell.
+	// Set the warp env variable for the shell.
 	env := os.Environ()
 	env = append(
 		env, fmt.Sprintf("%s=%s", warp.EnvWarp, c.warp),
-	)
-	env = append(
-		env, fmt.Sprintf("%s=%s", warp.EnvWarpUnixSocket, c.srv.Path()),
 	)
 	c.cmd.Env = env
 
