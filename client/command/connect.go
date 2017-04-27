@@ -137,6 +137,16 @@ func (c *Connect) Parse(
 func (c *Connect) Execute(
 	ctx context.Context,
 ) error {
+	if os.Getenv(warp.EnvWarp) == c.warp {
+		return errors.Trace(
+			errors.Newf(
+				"You are attempting to connect to warp %s from inside itself. "+
+					"You don't need to connect to a warp you opened.",
+				c.warp,
+			),
+		)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 
 	var conn net.Conn
