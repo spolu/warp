@@ -208,7 +208,7 @@ func (c *Open) Execute(
 		)
 	}
 
-	// Store initial sizxe of the terminal.
+	// Store initial size of the terminal.
 	cols, rows, err := terminal.GetSize(stdin)
 	if err != nil {
 		return errors.Trace(
@@ -231,7 +231,11 @@ func (c *Open) Execute(
 		)
 	}
 	// Restores the terminal once we're done.
-	defer terminal.Restore(stdin, old)
+	defer func() {
+		terminal.Restore(stdin, old)
+		// Let's attempt to clean things up with a newline.
+		fmt.Printf("\n")
+	}()
 
 	// Start shell.
 	c.cmd = exec.Command(c.shell)
@@ -254,9 +258,6 @@ func (c *Open) Execute(
 		c.cmd.Wait()
 		cancel()
 	}()
-
-	// Closes the newly created pty.
-	defer c.pty.Close()
 
 	// Main loops.
 
@@ -362,10 +363,7 @@ func (c *Open) Execute(
 
 	<-ctx.Done()
 
-	// By then we probably show a prompt so lets add add a newline.
-	fmt.Printf("\n")
-
-	return userErr
+	return errors.Trace(userErr)
 }
 
 // ReconnectLoop handles reconnecting the host to warpd. Each time the
@@ -377,6 +375,7 @@ func (c *Open) ConnLoop(
 	ctx context.Context,
 ) {
 	first := true
+CONNLOOP:
 	for {
 		var conn net.Conn
 		var err error
@@ -419,7 +418,7 @@ func (c *Open) ConnLoop(
 
 		select {
 		case <-ctx.Done():
-			break
+			break CONNLOOP
 		default:
 		}
 	}
@@ -506,6 +505,7 @@ func (c *Open) ManageSession(
 
 	// Listen for state updates.
 	go func() {
+	STATELOOP:
 		for {
 			if st, err := ss.DecodeState(ctx); err != nil {
 				break
@@ -516,7 +516,7 @@ func (c *Open) ManageSession(
 			}
 			select {
 			case <-ctx.Done():
-				break
+				break STATELOOP
 			default:
 			}
 		}

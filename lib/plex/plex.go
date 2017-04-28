@@ -12,6 +12,7 @@ func Run(
 	src io.Reader,
 ) {
 	buf := make([]byte, 1024)
+PLEXLOOP:
 	for {
 		nr, err := src.Read(buf)
 		if nr > 0 {
@@ -24,7 +25,7 @@ func Run(
 		}
 		select {
 		case <-ctx.Done():
-			break
+			break PLEXLOOP
 		default:
 		}
 	}

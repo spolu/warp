@@ -223,6 +223,7 @@ func (c *Connect) Execute(
 
 	// Listen for state updates.
 	go func() {
+	STATELOOP:
 		for {
 			if st, err := c.ss.DecodeState(ctx); err != nil {
 				break
@@ -236,7 +237,7 @@ func (c *Connect) Execute(
 
 			select {
 			case <-ctx.Done():
-				break
+				break STATELOOP
 			default:
 			}
 		}
