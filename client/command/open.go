@@ -53,8 +53,9 @@ type Open struct {
 	size  warp.Size
 	ss    *cli.Session
 
-	errC  chan error
-	initC chan struct{}
+	errC   chan error
+	initC  chan struct{}
+	inited bool
 }
 
 // NewOpen constructs and initializes the command.
@@ -284,6 +285,7 @@ func (c *Open) Execute(
 	// Launch the local command server.
 	go func() {
 		<-c.initC
+		c.inited = true
 		c.srv.Run(ctx)
 		cancel()
 	}()
@@ -412,7 +414,7 @@ func (c *Open) ConnLoop(
 		}
 		defer conn.Close()
 
-		c.ManageSession(ctx, conn, !first)
+		c.ManageSession(ctx, conn, false)
 		first = false
 
 		select {
@@ -485,7 +487,12 @@ func (c *Open) ManageSession(
 			}
 			return
 		} else {
-			c.initC <- struct{}{}
+			c.mutex.Lock()
+			inited := c.inited
+			c.mutex.Unlock()
+			if !inited {
+				c.initC <- struct{}{}
+			}
 		}
 	}
 
