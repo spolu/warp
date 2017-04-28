@@ -414,7 +414,7 @@ func (c *Open) ConnLoop(
 		}
 		defer conn.Close()
 
-		c.ManageSession(ctx, conn, false)
+		c.ManageSession(ctx, conn, !first)
 		first = false
 
 		select {
