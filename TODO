@@ -31,7 +31,7 @@
   [x] credentials -> configuration
   [x] WARPD_NO_TLS env
   [x] confirmation on warp authorize (also show warpd ID)
-  [ ] PROMPT support for bash, zsh, csh
+  [-] PROMPT support for bash, zsh, csh
   [ ] docker image for quick warp trial / warpd deployment
   [ ] brew recipe
 

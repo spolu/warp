@@ -9,8 +9,6 @@ import (
 
 type Shell struct {
 	Command string
-	PS1     string
-	PROMPT  string
 }
 
 // retrieveShell retrieves the current shell for the user using the following
