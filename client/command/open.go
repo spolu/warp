@@ -36,9 +36,9 @@ func init() {
 
 // Open spawns a new shared terminal.
 type Open struct {
-	shell       string
 	noTLS       bool
 	insecureTLS bool
+	shell       *cli.Shell
 
 	address  string
 	warp     string
@@ -131,10 +131,13 @@ func (c *Open) Parse(
 		c.noTLS = true
 	}
 
-	c.shell = "/bin/bash"
-	if os.Getenv("SHELL") != "" {
-		c.shell = os.Getenv("SHELL")
+	s, err := cli.DetectShell(ctx)
+	if err != nil {
+		return errors.Trace(
+			errors.Newf("Error detecting shell: %v", err),
+		)
 	}
+	c.shell = s
 
 	user, err := user.Current()
 	if err != nil {
@@ -238,7 +241,7 @@ func (c *Open) Execute(
 	}()
 
 	// Start shell.
-	c.cmd = exec.Command(c.shell)
+	c.cmd = exec.Command(c.shell.Command, "-l")
 
 	// Set the warp env variable for the shell.
 	env := os.Environ()
