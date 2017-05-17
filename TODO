@@ -42,13 +42,3 @@
   [ ] minimal command system
     [ ] /unmute /mute
 
-# NOTES
-
-  # PROMPT / Shell behavior
-
-    linux:
-      .bashrc is loaded
-      PROMPT is innefective
-    mac:
-      .profile not loaded
-      PROMPT works

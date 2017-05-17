@@ -3,7 +3,7 @@
  | | /| / / __ `/ ___/ __ \
  | |/ |/ / /_/ / /  / /_/ /
  |__/|__/\__,_/_/  / .___/ 
-                  /_/        v0.0.2
+                  /_/        v0.0.3
 ```
 
 #### `warp` lets you securely share your terminal with one simple command
@@ -103,16 +103,18 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 - [x] *v0.0.2 "bare"*
   - bare functionalities (see [TODO](TODO))
-- [ ] *v0.0.3 "safe"*
-  - PROMPT support
+- [x] *v0.0.3 "safe"*
   - persisted user token/secret
   - graceful host reconnection
-- [ ] *future releases*
-  - `warp voice :warp` lets you voice-over a warp
-  - terminal emulation
+- [ ] *v0.0.4 "vt100"*
+  - terminal emulation to achieve:
     - full redraw on connection
     - top status bar
-    - terminal truncation
+    - no resize / terminal truncation
+- [ ] *v0.0.5 "web"*
+  - web-socket / HTTPS instead of raw sockets
+- [ ] *future releases*
+  - `warp voice :warp` lets you voice-over a warp
   - e2e encryption
   - warp signin and verified usernames
 
@@ -120,12 +122,11 @@ daemon it is connected to to enforce the read/write policy of clients.
 
 #### `warp` is not a fork of tmux
 
-`warp` is not a fork of tmux[0] and is not a terminal emulator (though we might
-eventually get to terminal emulation to enhance the user experience). It really
-simply multiplexes stdin/stdout to raw ptys between host and clients. For that
-reason, if you connect to a warp already running a GUI-like application (tmux,
-vim, htop, ...) it might take time or host interactions for the GUI-like
-application to visually reconstruct properly client-side.
+`warp` is not a fork of tmux[0] and is not a terminal emulator (for now). It
+really simply multiplexes stdin/stdout to raw ptys between host and clients.
+For that reason, if you connect to a warp already running a GUI-like
+application (tmux, vim, htop, ...) it might take time or host interactions for
+the GUI-like application to visually reconstruct properly client-side.
 
 In particular, since `warp` does not emulate the terminal it cannot reformat or
 truncate the output of the host terminal to fit client terminal windows which
@@ -141,7 +142,7 @@ that reason it is recommended to run `warp connect` from a new terminal window.
 #### Development of warp
 
 Development of `warp` is generally broadcasted in **warp-dev**. Feel free to
-try to connect at any time.
+connect at any time.
 
 -- 
 
