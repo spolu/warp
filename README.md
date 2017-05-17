@@ -1,3 +1,5 @@
+# README
+
 ```
   _      ______ __________ 
  | | /| / / __ `/ ___/ __ \
@@ -8,10 +10,14 @@
 
 #### `warp` lets you securely share your terminal with one simple command
 
-`warp` is designed for high-bandwidth interactions between developers. Once
-connected to your warp clients will see your terminal exactly as if they were
-sitting next to you. You can also grant them write access, the online
-equivalent of handing them your keyboard.
+`warp` is designed for high-bandwidth interactions between developers: when
+connected to one of your warp clients see your terminal exactly as if they
+were sitting next to you; granting them write access is also supported, the
+virtual equivalent of handing them your keyboard.
+
+`warp` distinguishes itself from "tmux/screen over ssh" by its focus and
+simplicity to use as it does not require an SSH access to your machine or a
+shared server for your clients to collaborate with you.
 
 ## Installation
 
@@ -33,9 +39,9 @@ Instantly start sharing your terminal (read-only) under warp ID **goofy-dev**
 with:
 
 ```shell
-# While **goofy-dev** is a pretty cool warp name, you can name your warps
-# however you want. In particular a cryptographically secure random ID will be
-# generated for you if you don't specifiy one.
+# You can name your warps however you want (here **goofy-dev**). In particular
+# a cryptographically secure random ID will be generated for you if you don't
+# specifiy a name.
 
 $ warp open goofy-dev
 ```
@@ -136,7 +142,8 @@ mitigate that, `warp` relies on automatic client terminal resizing.
 
 Once connected as a client and whenever the host terminal window size changes,
 `warp` will attempt to resize your terminal window to the hosting tty size. For
-that reason it is recommended to run `warp connect` from a new terminal window.
+that reason it is recommended to run `warp connect` from a new terminal
+window[1].
 
 #### Development of warp
 
@@ -147,3 +154,13 @@ connect at any time.
 
 [0] You can run a warp from within tmux (or screen) or tmux from within a warp.
 It's also fine to run a warp from within a warp.
+
+[1] Window resize support:
+| Terminal        | Single Window | Tabs |
+| --------------- |:-------------:|:-----:|
+| MacOSX Terminal | Y             | Y    |
+| iTerm2          | Y             | N    |
+| Hyper           | N             | N    |
+| xterm           | Y             | N/A  |
+
+
