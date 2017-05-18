@@ -115,12 +115,14 @@ daemon it is connected to to enforce the read/write policy of clients.
   - terminal emulation to achieve:
     - full redraw on connection
     - top status bar
-    - no resize / terminal truncation
+    - terminal truncation
+    - no resize required anymore
 - [ ] *v0.0.5 "web"*
   - web-socket / HTTPS instead of raw sockets
+- [ ] *v0.0.6 "cipher"*
+  - e2e encryption based on warp ID
 - [ ] *future releases*
   - `warp voice :warp` lets you voice-over a warp
-  - e2e encryption
   - warp signin and verified usernames
 
 ## Notes
@@ -155,7 +157,9 @@ connect at any time.
 [0] You can run a warp from within tmux (or screen) or tmux from within a warp.
 It's also fine to run a warp from within a warp.
 
-[1] Window resize support:
+[1] Terminals supporting window resizes based on the `\033[8;h;wt` ANSI escape
+sequence:
+
 | Terminal        | Support |
 | --------------- |:-------:|
 | MacOSX Terminal | Y       |
