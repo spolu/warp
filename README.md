@@ -156,11 +156,11 @@ connect at any time.
 It's also fine to run a warp from within a warp.
 
 [1] Window resize support:
-| Terminal        | Single Window | Tabs |
-| --------------- |:-------------:|:-----:|
-| MacOSX Terminal | Y             | Y    |
-| iTerm2          | Y             | N    |
-| Hyper           | N             | N    |
-| xterm           | Y             | N/A  |
+| Terminal        | Support |
+| --------------- |:-------:|
+| MacOSX Terminal | Y       |
+| XTerm           | Y       |
+| Hyper           | N       |
+| iTerm2          | N       |
 
 
