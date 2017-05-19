@@ -23,8 +23,9 @@ shared server for your clients to collaborate with you.
 
 #### MacOSX (using Homebrew)
 
-```
+```shell
 # Requires Homebrew installed. See https://brew.sh/
+
 brew install warp
 ```
 
