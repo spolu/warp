@@ -211,6 +211,7 @@ func (s *Srv) handleShellClient(
 	s.mutex.Unlock()
 
 	if !ok {
+		// This error code (warp_unknown) is expected by brew for warp 0.0.3.
 		ss.SendError(ctx,
 			"warp_unknown",
 			fmt.Sprintf(

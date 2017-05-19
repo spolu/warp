@@ -117,9 +117,8 @@ daemon it is connected to to enforce the read/write policy of clients.
     - top status bar
     - terminal truncation
     - no resize required anymore
-- [ ] *v0.0.5 "web"*
   - web-socket / HTTPS instead of raw sockets
-- [ ] *v0.0.6 "cipher"*
+- [ ] *v0.0.5 "cipher"*
   - e2e encryption based on warp ID
 - [ ] *future releases*
   - `warp voice :warp` lets you voice-over a warp

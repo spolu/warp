@@ -1,3 +1,8 @@
+# v0.0.4 "vt100"
+
+  [ ] port vt.js to golang
+  [ ] refactor warp/warpd to use websockets
+
 # v0.0.2 "bare"
 
   [x] TLS
@@ -31,9 +36,9 @@
   [x] credentials -> configuration
   [x] WARPD_NO_TLS env
   [x] confirmation on warp authorize (also show warpd ID)
-  [-] PROMPT support for bash, zsh, csh
-  [ ] docker image for quick warp trial / warpd deployment
   [ ] brew recipe
+  [-] PROMPT support for bash, zsh, csh
+  [-] docker image for quick warp trial / warpd deployment
 
 # v0.0.x "voice"
 
