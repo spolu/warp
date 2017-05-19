@@ -21,6 +21,12 @@ shared server for your clients to collaborate with you.
 
 ## Installation
 
+#### MacOSX (using Homebrew)
+
+```
+brew install warp
+```
+
 #### From source code
 
 ```shell
