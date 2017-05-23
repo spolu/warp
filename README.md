@@ -11,13 +11,19 @@
 *Secure and simple terminal sharing*
 
 `warp` lets you securely share your terminal with one simple command: `warp
-open`. When connected to your warp clients can see your terminal exactly as if
+open`. When connected to your warp, clients can see your terminal exactly as if
 they were sitting next to you. You can also grant them write access, the
 equivalent of handing them your keyboard.
 
 `warp` distinguishes itself from "tmux/screen over ssh" by its focus and
 ease of use as it does not require an SSH access to your machine or a
 shared server for your others to collaborate with you.
+
+Despite being still quite experimental, `warp` has already proven itself useful
+especially in the context of:
+
+- Interaction with remote team-members
+- New engineer onboarding (navigating code in group without projection)
 
 ## Installation
 
