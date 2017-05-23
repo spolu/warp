@@ -8,16 +8,16 @@
                   /_/        v0.0.3
 ```
 
-#### `warp` lets you securely share your terminal with one simple command
+*Secure and simple terminal sharing*
 
-`warp` is designed for high-bandwidth interactions between developers: when
-connected to one of your warp clients see your terminal exactly as if they
-were sitting next to you; granting them write access is also supported, the
-virtual equivalent of handing them your keyboard.
+`warp` lets you securely share your terminal with one simple command: `warp
+open`. When connected to your warp clients can see your terminal exactly as if
+they were sitting next to you. You can also grant them write access, the
+equivalent of handing them your keyboard.
 
 `warp` distinguishes itself from "tmux/screen over ssh" by its focus and
-simplicity to use as it does not require an SSH access to your machine or a
-shared server for your clients to collaborate with you.
+ease of use as it does not require an SSH access to your machine or a
+shared server for your others to collaborate with you.
 
 ## Installation
 
@@ -145,7 +145,8 @@ the GUI-like application to visually reconstruct properly client-side.
 In particular, since `warp` does not emulate the terminal it cannot reformat or
 truncate the output of the host terminal to fit client terminal windows which
 may lead to distorted outputs client side if the terminal sizes mismatch. To
-mitigate that, `warp` relies on automatic client terminal resizing.
+mitigate that, `warp` relies on automatic client terminal resizing (pending
+*v0.0.4*, see Roadmap).
 
 #### Automatic client terminal resize
 
