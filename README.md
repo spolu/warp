@@ -17,7 +17,7 @@ equivalent of handing them your keyboard.
 
 `warp` distinguishes itself from "tmux/screen over ssh" by its focus and
 ease of use as it does not require an SSH access to your machine or a
-shared server for your others to collaborate with you.
+shared server for others to collaborate with you.
 
 Despite being still quite experimental, `warp` has already proven itself useful
 especially in the context of:
