@@ -1,0 +1,29 @@
+name: warp
+version: master
+summary: Secure and simple terminal sharing
+description: |
+  warp lets you securely share your terminal with one simple command:
+
+  warp open
+
+  When connected to your warp, clients can see your terminal exactly
+  as if they were sitting next to you. You can also grant them write
+  access, the equivalent of handing them your keyboard.
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: strict
+
+apps:
+  warp:
+    command: warp
+    plugs: [network, network-bind, home]
+
+parts:
+  warp:
+    source: .
+    plugin: go
+    go-packages: [github.com/spolu/warp/client/cmd/warp]
+    go-importpath: github.com/spolu/warp
+    after: [go]
+  go:
+    source-tag: go1.8.3
