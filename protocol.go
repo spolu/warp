@@ -63,7 +63,7 @@ type Error struct {
 	Message string
 }
 
-// Size reprensents a window size.
+// Size represents a window size.
 type Size struct {
 	Rows int
 	Cols int
